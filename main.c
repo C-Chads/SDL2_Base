@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 
-#include "stringutil.h"
+#include "libs/stringutil.h"
 
 #define SDL_MAIN_HANDLED
 #ifdef __TINYC__
@@ -10,7 +10,7 @@
 #define SDL_DISABLE_IMMINTRIN_H 1
 #endif
 
-#include "font8x8_basic.h"
+#include "libs/font8x8_basic.h"
 #include <SDL2/SDL.h>
 static SDL_Window *sdl_win = NULL;
 static SDL_Renderer *sdl_rend = NULL;
@@ -26,7 +26,7 @@ static unsigned int display_scale = 1;
 static unsigned char FG_color = 15;
 int shouldquit = 0;
 static unsigned int vga_palette[256] = {
-#include "vga_pal.h"
+#include "libs/vga_pal.h"
 };
 /*
 audio callback.
