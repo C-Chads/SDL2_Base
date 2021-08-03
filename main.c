@@ -147,7 +147,7 @@ int main(int argc, char** argv){
 	  "SDL_Error: %s\r\n", SDL_GetError());
 	  exit(-1);
 	}
-	/*SDL_PauseAudio(0);*/
+	SDL_PauseAudio(0);
 	/*SDL_StartTextInput();*/
 	gameInit();
 	while(!shouldquit){
