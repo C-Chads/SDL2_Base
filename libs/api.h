@@ -15,7 +15,7 @@ If you want mp3 support, you will need libmp3123
 //#define USE_MP3
 #ifdef __TINYC__
 #define STBI_NO_SIMD
-#define SDL_DISABLE_IMMINTRIN_H
+#define SDL_DISABLE_IMMINTRIN_H 1
 #endif
 
 #include <stdio.h>
@@ -32,8 +32,8 @@ If you want mp3 support, you will need libmp3123
 #define STB_IMAGE_IMPLEMENTATION
 #endif
 
-#include "../../include/stb_image.h"
-#include "../../include/3dMath.h"
+#include "stb_image.h"
+#include "3dMath.h"
 //#include "../../include/fixedmath.h"
 #ifndef c_chads_api
 #define c_chads_api

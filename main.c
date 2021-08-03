@@ -6,6 +6,7 @@
 
 #define SDL_MAIN_HANDLED
 #ifdef __TINYC__
+#define STBI_NO_SIMD
 #define SDL_DISABLE_IMMINTRIN_H 1
 #endif
 
@@ -16,7 +17,7 @@ static SDL_Renderer *sdl_rend = NULL;
 static SDL_Texture *sdl_tex = NULL;
 static SDL_AudioSpec sdl_spec = {0};
 #define ABUF_LEN 0x100000
-static unsigned int audio_left = 0;
+static int audio_left = 0;
 static unsigned char abuf[ABUF_LEN];
 static unsigned int *SDL_targ = NULL; /*Default to all black.*/
 static unsigned int width = 640;
