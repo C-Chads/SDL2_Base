@@ -1,0 +1,40 @@
+newmtl Default
+Ns 149
+d 1
+illum 2
+Kd 1 1 1
+Ka 0 0 0
+Ks 1 1 1
+
+newmtl eyes
+Ns 149
+d 1
+illum 2
+Kd 1 1 1
+Ka 0 0 0
+Ks 1 1 1
+
+newmtl tongue
+Ns 149
+d 1
+illum 2
+Kd 0.832578 0.316106 0.388647
+Ka 0 0 0
+Ks 1 1 1
+
+newmtl pupils
+Ns 149
+d 1
+illum 2
+Kd 0 0 0
+Ka 0 0 0
+Ks 1 1 1
+
+newmtl skin
+Ns 149
+d 1
+illum 2
+Kd 0.954757 0.820066 0.788785
+Ka 0 0 0
+Ks 1 1 1
+

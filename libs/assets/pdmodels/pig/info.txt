@@ -1,0 +1,10 @@
+Pig
+
+Author: Keenan Crane
+Date: July 13, 2006
+Inspiration: Origins of the Pig (see http://pouet.net/topic.php?which=2354&page=1)
+
+Archive contents:
+   pig_quad_controlmesh.obj -- Catmull-Clark control mesh
+   pig_triangulated.[obj,mtl] -- triangulated mesh
+   pig_[body,eyes,pupils,tongue].obj -- triangulated mesh, segmented by material

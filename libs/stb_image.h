@@ -1,7 +1,3 @@
-#ifdef __TINYC__
-#define STBI_NO_SIMD
-#endif
-
 /* stb_image - v2.25 - public domain image loader - http://nothings.org/stb
 								  no warranty implied; use at your own risk
 
