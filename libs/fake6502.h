@@ -184,15 +184,23 @@ typedef unsigned int uint32;
 }
 
 
+#ifndef FAKE6502_NOT_STATIC
 /*6502 CPU registers*/
+ushort pc;
+uint8 sp, a, x, y, status;
+/*helper variables*/
+uint32 instructions = 0; 
+uint32 clockticks6502 = 0, clockgoal6502 = 0;
+ushort oldpc, ea, reladdr, value, result;
+uint8 opcode, oldstatus;
+#else
 static ushort pc;
 static uint8 sp, a, x, y, status;
-/*helper variables*/
 static uint32 instructions = 0; 
 static uint32 clockticks6502 = 0, clockgoal6502 = 0;
 static ushort oldpc, ea, reladdr, value, result;
 static uint8 opcode, oldstatus;
-
+#endif
 /*externally supplied functions*/
 extern uint8 read6502(ushort address);
 extern void write6502(ushort address, uint8 value);
@@ -450,7 +458,7 @@ static void bpl() {
     }
 }
 
-static void brk() {
+static void brk_6502() {
     pc++;
     push_6502_16(pc); /*push next instruction address onto stack*/
     push_6502_8(status | FLAG_BREAK); /*push CPU status to stack*/
@@ -886,7 +894,7 @@ static void (*addrtable[256])() = {
 
 static void (*optable[256])() = {
 /*        |  0  |  1  |  2  |  3  |  4  |  5  |  6  |  7  |  8  |  9  |  A  |  B  |  C  |  D  |  E  |  F  |      */
-/* 0 */      brk,  ora,  nop,  slo,  nop,  ora,  asl,  slo,  php,  ora,  asl,  nop,  nop,  ora,  asl,  slo, /* 0 */
+/* 0 */      brk_6502,  ora,  nop,  slo,  nop,  ora,  asl,  slo,  php,  ora,  asl,  nop,  nop,  ora,  asl,  slo, /* 0 */
 /* 1 */      bpl,  ora,  nop,  slo,  nop,  ora,  asl,  slo,  clc,  ora,  nop,  slo,  nop,  ora,  asl,  slo, /* 1 */
 /* 2 */      jsr,  and,  nop,  rla,  bit,  and,  rol,  rla,  plp,  and,  rol,  nop,  bit,  and,  rol,  rla, /* 2 */
 /* 3 */      bmi,  and,  nop,  rla,  nop,  and,  rol,  rla,  sec,  and,  nop,  rla,  nop,  and,  rol,  rla, /* 3 */
