@@ -46,8 +46,8 @@
  * Fake6502 requires you to provide two external     *
  * functions:                                        *
  *                                                   *
- * uint8 read6502(ushort address)                *
- * void write6502(ushort address, uint8 value)   *
+ * uint8 read6502(ushort address)                    *
+ * void write6502(ushort address, uint8 value)       *
  *                                                   *
  * You may optionally pass Fake6502 the pointer to a *
  * function which you want to be called after every  *
@@ -147,7 +147,7 @@ typedef unsigned int uint32;
 #define saveaccum(n) a = (uint8)((n) & 0x00FF)
 
 
-//flag modifier macros
+/*flag modifier macros*/
 #define setcarry() status |= FLAG_CARRY
 #define clearcarry() status &= (~FLAG_CARRY)
 #define setzero() status |= FLAG_ZERO
@@ -162,7 +162,7 @@ typedef unsigned int uint32;
 #define clearsign() status &= (~FLAG_SIGN)
 
 
-//flag calculation macros
+/*flag calculation macros*/
 #define zerocalc(n) {\
     if ((n) & 0x00FF) clearzero();\
         else setzero();\
@@ -184,20 +184,20 @@ typedef unsigned int uint32;
 }
 
 
-//6502 CPU registers
-ushort pc;
-uint8 sp, a, x, y, status;
-//helper variables
-uint32 instructions = 0; //keep track of total instructions executed
-uint32 clockticks6502 = 0, clockgoal6502 = 0;
-ushort oldpc, ea, reladdr, value, result;
-uint8 opcode, oldstatus;
+/*6502 CPU registers*/
+static ushort pc;
+static uint8 sp, a, x, y, status;
+/*helper variables*/
+static uint32 instructions = 0; 
+static uint32 clockticks6502 = 0, clockgoal6502 = 0;
+static ushort oldpc, ea, reladdr, value, result;
+static uint8 opcode, oldstatus;
 
-//externally supplied functions
+/*externally supplied functions*/
 extern uint8 read6502(ushort address);
 extern void write6502(ushort address, uint8 value);
 
-//a few general functions used by various other functions
+/*a few general functions used by various other functions*/
 void push16(ushort pushval) {
     write6502(BASE_STACK + sp, (pushval >> 8) & 0xFF);
     write6502(BASE_STACK + ((sp - 1) & 0xFF), pushval & 0xFF);
@@ -233,88 +233,90 @@ static void (*addrtable[256])();
 static void (*optable[256])();
 uint8 penaltyop, penaltyaddr;
 
-//addressing mode functions, calculates effective addresses
-static void imp() { //implied
+/*addressing mode functions, calculates effective addresses*/
+static void imp() { 
 }
 
-static void acc() { //accumulator
+/*addressing mode functions, calculates effective addresses*/
+static void acc() { 
 }
 
-static void imm() { //immediate
+/*addressing mode functions, calculates effective addresses*/
+static void imm() { 
     ea = pc++;
 }
 
-static void zp() { //zero-page
+static void zp() { /*zero-page*/
     ea = (ushort)read6502((ushort)pc++);
 }
 
-static void zpx() { //zero-page,X
-    ea = ((ushort)read6502((ushort)pc++) + (ushort)x) & 0xFF; //zero-page wraparound
+static void zpx() { /*zero-page,X*/
+    ea = ((ushort)read6502((ushort)pc++) + (ushort)x) & 0xFF; /*zero-page wraparound*/
 }
 
-static void zpy() { //zero-page,Y
-    ea = ((ushort)read6502((ushort)pc++) + (ushort)y) & 0xFF; //zero-page wraparound
+static void zpy() { /*zero-page,Y*/
+    ea = ((ushort)read6502((ushort)pc++) + (ushort)y) & 0xFF; /*zero-page wraparound*/
 }
 
-static void rel() { //relative for branch ops (8-bit immediate value, sign-extended)
+static void rel() { /*relative for branch ops (8-bit immediate value, sign-extended)*/
     reladdr = (ushort)read6502(pc++);
     if (reladdr & 0x80) reladdr |= 0xFF00;
 }
 
-static void abso() { //absolute
+static void abso() { /*absolute*/
     ea = (ushort)read6502(pc) | ((ushort)read6502(pc+1) << 8);
     pc += 2;
 }
 
-static void absx() { //absolute,X
+static void absx() { /*absolute,X*/
     ushort startpage;
     ea = ((ushort)read6502(pc) | ((ushort)read6502(pc+1) << 8));
     startpage = ea & 0xFF00;
     ea += (ushort)x;
 
-    if (startpage != (ea & 0xFF00)) { //one cycle penlty for page-crossing on some opcodes
+    if (startpage != (ea & 0xFF00)) { /*one cycle penlty for page-crossing on some opcodes*/
         penaltyaddr = 1;
     }
 
     pc += 2;
 }
 
-static void absy() { //absolute,Y
+static void absy() { /*absolute,Y*/
     ushort startpage;
     ea = ((ushort)read6502(pc) | ((ushort)read6502(pc+1) << 8));
     startpage = ea & 0xFF00;
     ea += (ushort)y;
 
-    if (startpage != (ea & 0xFF00)) { //one cycle penlty for page-crossing on some opcodes
+    if (startpage != (ea & 0xFF00)) { /*one cycle penlty for page-crossing on some opcodes*/
         penaltyaddr = 1;
     }
 
     pc += 2;
 }
 
-static void ind() { //indirect
+static void ind() { /*indirect*/
     ushort eahelp, eahelp2;
     eahelp = (ushort)read6502(pc) | (ushort)((ushort)read6502(pc+1) << 8);
-    eahelp2 = (eahelp & 0xFF00) | ((eahelp + 1) & 0x00FF); //replicate 6502 page-boundary wraparound bug
+    eahelp2 = (eahelp & 0xFF00) | ((eahelp + 1) & 0x00FF); /*replicate 6502 page-boundary wraparound bug*/
     ea = (ushort)read6502(eahelp) | ((ushort)read6502(eahelp2) << 8);
     pc += 2;
 }
 
-static void indx() { // (indirect,X)
+static void indx() { /* (indirect,X)*/
     ushort eahelp;
-    eahelp = (ushort)(((ushort)read6502(pc++) + (ushort)x) & 0xFF); //zero-page wraparound for table pointer
+    eahelp = (ushort)(((ushort)read6502(pc++) + (ushort)x) & 0xFF); /*zero-page wraparound for table pointer*/
     ea = (ushort)read6502(eahelp & 0x00FF) | ((ushort)read6502((eahelp+1) & 0x00FF) << 8);
 }
 
-static void indy() { // (indirect),Y
+static void indy() { /* (indirect),Y*/
     ushort eahelp, eahelp2, startpage;
     eahelp = (ushort)read6502(pc++);
-    eahelp2 = (eahelp & 0xFF00) | ((eahelp + 1) & 0x00FF); //zero-page wraparound
+    eahelp2 = (eahelp & 0xFF00) | ((eahelp + 1) & 0x00FF); /*zero-page wraparound*/
     ea = (ushort)read6502(eahelp) | ((ushort)read6502(eahelp2) << 8);
     startpage = ea & 0xFF00;
     ea += (ushort)y;
 
-    if (startpage != (ea & 0xFF00)) { //one cycle penlty for page-crossing on some opcodes
+    if (startpage != (ea & 0xFF00)) { /*one cycle penlty for page-crossing on some opcodes*/
         penaltyaddr = 1;
     }
 }
@@ -334,7 +336,7 @@ static void putvalue(ushort saveval) {
 }
 
 
-//instruction handler functions
+/*instruction handler functions*/
 static void adc() {
     penaltyop = 1;
     value = getvalue();
@@ -390,7 +392,7 @@ static void bcc() {
     if ((status & FLAG_CARRY) == 0) {
         oldpc = pc;
         pc += reladdr;
-        if ((oldpc & 0xFF00) != (pc & 0xFF00)) clockticks6502 += 2; //check if jump crossed a page boundary
+        if ((oldpc & 0xFF00) != (pc & 0xFF00)) clockticks6502 += 2; /*check if jump crossed a page boundary*/
             else clockticks6502++;
     }
 }
@@ -399,7 +401,7 @@ static void bcs() {
     if ((status & FLAG_CARRY) == FLAG_CARRY) {
         oldpc = pc;
         pc += reladdr;
-        if ((oldpc & 0xFF00) != (pc & 0xFF00)) clockticks6502 += 2; //check if jump crossed a page boundary
+        if ((oldpc & 0xFF00) != (pc & 0xFF00)) clockticks6502 += 2; /*check if jump crossed a page boundary*/
             else clockticks6502++;
     }
 }
@@ -408,7 +410,7 @@ static void beq() {
     if ((status & FLAG_ZERO) == FLAG_ZERO) {
         oldpc = pc;
         pc += reladdr;
-        if ((oldpc & 0xFF00) != (pc & 0xFF00)) clockticks6502 += 2; //check if jump crossed a page boundary
+        if ((oldpc & 0xFF00) != (pc & 0xFF00)) clockticks6502 += 2; /*check if jump crossed a page boundary*/
             else clockticks6502++;
     }
 }
@@ -425,7 +427,7 @@ static void bmi() {
     if ((status & FLAG_SIGN) == FLAG_SIGN) {
         oldpc = pc;
         pc += reladdr;
-        if ((oldpc & 0xFF00) != (pc & 0xFF00)) clockticks6502 += 2; //check if jump crossed a page boundary
+        if ((oldpc & 0xFF00) != (pc & 0xFF00)) clockticks6502 += 2; /*check if jump crossed a page boundary*/
             else clockticks6502++;
     }
 }
@@ -434,7 +436,7 @@ static void bne() {
     if ((status & FLAG_ZERO) == 0) {
         oldpc = pc;
         pc += reladdr;
-        if ((oldpc & 0xFF00) != (pc & 0xFF00)) clockticks6502 += 2; //check if jump crossed a page boundary
+        if ((oldpc & 0xFF00) != (pc & 0xFF00)) clockticks6502 += 2; /*check if jump crossed a page boundary*/
             else clockticks6502++;
     }
 }
@@ -443,16 +445,16 @@ static void bpl() {
     if ((status & FLAG_SIGN) == 0) {
         oldpc = pc;
         pc += reladdr;
-        if ((oldpc & 0xFF00) != (pc & 0xFF00)) clockticks6502 += 2; //check if jump crossed a page boundary
+        if ((oldpc & 0xFF00) != (pc & 0xFF00)) clockticks6502 += 2; /*check if jump crossed a page boundary*/
             else clockticks6502++;
     }
 }
 
 static void brk() {
     pc++;
-    push16(pc); //push next instruction address onto stack
-    push8(status | FLAG_BREAK); //push CPU status to stack
-    setinterrupt(); //set interrupt flag
+    push16(pc); /*push next instruction address onto stack*/
+    push8(status | FLAG_BREAK); /*push CPU status to stack*/
+    setinterrupt(); /*set interrupt flag*/
     pc = (ushort)read6502(0xFFFE) | ((ushort)read6502(0xFFFF) << 8);
 }
 
@@ -460,7 +462,7 @@ static void bvc() {
     if ((status & FLAG_OVERFLOW) == 0) {
         oldpc = pc;
         pc += reladdr;
-        if ((oldpc & 0xFF00) != (pc & 0xFF00)) clockticks6502 += 2; //check if jump crossed a page boundary
+        if ((oldpc & 0xFF00) != (pc & 0xFF00)) clockticks6502 += 2; /*check if jump crossed a page boundary*/
             else clockticks6502++;
     }
 }
@@ -469,7 +471,7 @@ static void bvs() {
     if ((status & FLAG_OVERFLOW) == FLAG_OVERFLOW) {
         oldpc = pc;
         pc += reladdr;
-        if ((oldpc & 0xFF00) != (pc & 0xFF00)) clockticks6502 += 2; //check if jump crossed a page boundary
+        if ((oldpc & 0xFF00) != (pc & 0xFF00)) clockticks6502 += 2; /*check if jump crossed a page boundary*/
             else clockticks6502++;
     }
 }
@@ -801,7 +803,7 @@ static void tya() {
     signcalc(a);
 }
 
-//undocumented instructions
+/*undocumented instructions~~~~~~~~~~~~~~~~~~~~~~~~~*/
 #ifdef UNDOCUMENTED
     static void lax() {
         lda();
@@ -942,21 +944,16 @@ void (*loopexternal)();
 
 void exec6502(uint32 tickcount) {
     clockgoal6502 += tickcount;
-   
     while (clockticks6502 < clockgoal6502) {
         opcode = read6502(pc++);
         status |= FLAG_CONSTANT;
-
         penaltyop = 0;
         penaltyaddr = 0;
-
-        (*addrtable[opcode])();
+       	(*addrtable[opcode])();
         (*optable[opcode])();
         clockticks6502 += ticktable[opcode];
         if (penaltyop && penaltyaddr) clockticks6502++;
-
         instructions++;
-
         if (callexternal) (*loopexternal)();
     }
 

@@ -3,7 +3,6 @@
 #include <math.h>
 
 #include "libs/stringutil.h"
-
 #define SDL_MAIN_HANDLED
 #ifdef __TINYC__
 #define STBI_NO_SIMD
