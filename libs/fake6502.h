@@ -977,6 +977,7 @@ void step6502() {
     (*addrtable[opcode])();
     (*optable[opcode])();
     clockticks6502 += ticktable[opcode];
+    /*The following line goes commented out in Mike Chamber's usage of the 6502 emulator for MOARNES*/
     if (penaltyop && penaltyaddr) clockticks6502++;
     clockgoal6502 = clockticks6502;
 
