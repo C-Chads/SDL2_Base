@@ -184,7 +184,7 @@ typedef unsigned int uint32;
 }
 
 
-#ifndef FAKE6502_NOT_STATIC
+#ifdef FAKE6502_NOT_STATIC
 /*6502 CPU registers*/
 ushort pc;
 uint8 sp, a, x, y, status;
