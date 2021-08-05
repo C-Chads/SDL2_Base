@@ -1,0 +1,3 @@
+[submodule "otherlibs/myLittlez80"]
+	path = otherlibs/myLittlez80
+	url = https://github.com/C-Chads/myLittlez80.git

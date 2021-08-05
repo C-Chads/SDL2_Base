@@ -2,14 +2,14 @@
 #include <stdlib.h>
 #include <math.h>
 
-#include "libs/stringutil.h"
+#include "header_only_libs/stringutil.h"
 #define SDL_MAIN_HANDLED
 #ifdef __TINYC__
 #define STBI_NO_SIMD
 #define SDL_DISABLE_IMMINTRIN_H 1
 #endif
 
-#include "libs/font8x8_basic.h"
+#include "header_only_libs/font8x8_basic.h"
 #include <SDL2/SDL.h>
 static SDL_Window *sdl_win = NULL;
 static SDL_Renderer *sdl_rend = NULL;
@@ -25,7 +25,7 @@ static unsigned int display_scale = 1;
 static unsigned char FG_color = 15;
 int shouldquit = 0;
 static unsigned int vga_palette[256] = {
-#include "libs/vga_pal.h"
+#include "header_only_libs/vga_pal.h"
 };
 /*
 audio callback.
