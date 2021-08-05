@@ -1,6 +1,10 @@
-/* Fake6502 CPU emulator core v1.1 *******************
- *         Author:Mike Chambers (miker00lz@gmail.com)*
+/* Fake6502 CPU emulator core v1.3 *******************
+ *Original Author:Mike Chambers (miker00lz@gmail.com)*
+ *New Author:David MHS Webster (github.com/gek169)   *
+ *This version
  *****************************************************
+ * v1.3 - refactoring                                *
+ * v1.2 - Major bug fixes in handling adc and sbc    *
  * v1.1 - Small bugfix in BIT opcode, but it was the *
  *        difference between a few games in my NES   *
  *        emulator working and being broken!         *
