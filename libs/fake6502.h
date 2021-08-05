@@ -1,9 +1,24 @@
 /* Fake6502 CPU emulator core v1.3 *******************
  *Original Author:Mike Chambers (miker00lz@gmail.com)*
+ *                                                   *
  *New Author:David MHS Webster (github.com/gek169)   *
- *This version
+ *    Leave a star on github to show thanks for this *
+ *        FULLY PUBLIC DOMAIN, CC0 CODE              *
+ * Which I give to you and the world with absolutely *
+ *  no attribution, monetary compensation, or        *
+ *  copyleft requirement. Just write code!           *
  *****************************************************
- * v1.3 - refactoring                                *
+ *       Let all that you do be done with love       *
+ *****************************************************
+ *This version has been overhauled with major bug    *
+ *fixes relating to decimal mode and adc/sbc. I've   *
+ *put the emulator through its paces in kernalemu    *
+ *as well as run it through an instruction exerciser *
+ *to make sure it works properly. I also discovered  *
+ *bugs in the instruction exerciser while I was at it*
+ *I might contribute some fixes back to them.        *
+ *****************************************************
+ * v1.3 - refactoring and more bug fixes             *
  * v1.2 - Major bug fixes in handling adc and sbc    *
  * v1.1 - Small bugfix in BIT opcode, but it was the *
  *        difference between a few games in my NES   *
