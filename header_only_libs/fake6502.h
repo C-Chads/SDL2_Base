@@ -397,41 +397,42 @@ static void putvalue(ushort saveval) {
 
 /*instruction handler functions*/
 static void adc() {
-    penaltyop = 1;
-    value = getvalue();
-    result = (ushort)a + value + (ushort)(status & FLAG_CARRY);
-   
-    carrycalc(result);
-    zerocalc(result);
-    overflowcalc(result, a, value);
-    signcalc(result);
+
     
 #ifndef NES_CPU
-/*
     if (status & FLAG_DECIMAL) {
-        clearcarry();
-        if ((a & 0x0F) > 0x09) {
-            a += 0x06;
+        ushort tmp, tmp2;
+        value = getvalue();
+        tmp = ((ushort)a & 0x0F) + (value & 0x0F) + (ushort)(status & FLAG_CARRY);
+        tmp2 = ((ushort)a & 0xF0) + (value & 0xF0);
+        if (tmp > 0x09) {
+            tmp2 += 0x10;
+            tmp += 0x06;
         }
-        if ((a & 0xF0) > 0x90) {
-            a += 0x60;
+        if (tmp2 > 0x90) {
+            tmp2 += 0x60;
+        }
+        if (tmp2 & 0xFF00) {
             setcarry();
+        } else {
+            clearcarry();
         }
-        clockticks6502++;
-    }
-*/
-    if (status & FLAG_DECIMAL) {
-        clearcarry();
-        if ((result & 0x0F) > 0x09) {
-            result += 0x06;
-        }
-        if ((result & 0xF0) > 0x90) {
-            result += 0x60;
-            setcarry();
-        }
-        clockticks6502++;
-    }
+        result = (tmp & 0x0F) | (tmp2 & 0xF0);
+        /*the original 6502 did not set the zero flag for the */
+        signcalc(result);
+        /*clockticks6502++;*/
+    } else 
 #endif
+	{
+	    penaltyop = 1;
+	    value = getvalue();
+	    result = (ushort)a + value + (ushort)(status & FLAG_CARRY);
+	   
+	    carrycalc(result);
+	    zerocalc(result);
+	    overflowcalc(result, a, value);
+	    signcalc(result);
+    }
    
     saveaccum(result);
 }
@@ -781,18 +782,11 @@ static void rts() {
 }
 
 static void sbc() {
-
     penaltyop = 1;
-    value = getvalue() ^ 0x00FF;
-    result = (ushort)a + value + (ushort)(status & FLAG_CARRY);
-   
-    carrycalc(result);
-    zerocalc(result);
-    overflowcalc(result, a, value);
-    signcalc(result);
-
 #ifndef NES_CPU
     if (status & FLAG_DECIMAL) {
+     	value = getvalue() ^ 0x00FF;
+    	result = (ushort)a + value + (ushort)(status & FLAG_CARRY);
         clearcarry();
         /*result -= 0x66;*/
         if ((result & 0x0F) > 0x09) {
@@ -803,9 +797,18 @@ static void sbc() {
             setcarry();
         }
         clockticks6502++;
-    }
+        signcalc(result);
+        /*clockticks6502++;*/
+    } else 
 #endif
-   
+	{
+        value = getvalue() ^ 0x00FF;
+        result = (ushort)a + value + (ushort)(status & FLAG_CARRY);
+        carrycalc(result);
+        zerocalc(result);
+        overflowcalc(result, a, value);
+        signcalc(result);
+    }
     saveaccum(result);
 }
 
