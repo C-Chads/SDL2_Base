@@ -8,7 +8,7 @@ Packaged especially for authoring programs to use SDL2! I wrote a quick "hello w
 
 Of note:
 * A physics engine (chadphys.h, chade.h)
-* A 6502 emulator (fake6502.h)
+* A 6502 emulator (fake6502.h, fake65c02.h)
 * the entirety of STB (stb*.c)
 * a miniature rasterizing engine (api.h)
 * An audio api (api_audio.h)
