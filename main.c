@@ -75,8 +75,8 @@ static unsigned short get_gamerbuttons(){
 	retval |= 0x20 * (state[SDL_SCANCODE_RSHIFT]!=0);
 	retval |= 0x40 * (state[SDL_SCANCODE_Z]!=0);
 	retval |= 0x80 * (state[SDL_SCANCODE_X]!=0);
-
 	retval |= 0x100 * (state[SDL_SCANCODE_C]!=0);
+	
 	retval |= 0x200 * (state[SDL_SCANCODE_A]!=0);
 	retval |= 0x400 * (state[SDL_SCANCODE_S]!=0);
 	retval |= 0x800 * (state[SDL_SCANCODE_D]!=0);
@@ -84,6 +84,10 @@ static unsigned short get_gamerbuttons(){
 }
 
 #include "myGame.h"
+
+
+			SDL_Rect screenrect;
+			SDL_Rect screenrect2;
 
 int main(int argc, char** argv){
 	{int i = 1;for(i = 1;i < argc; i++){
@@ -95,6 +99,7 @@ int main(int argc, char** argv){
 			display_scale = strtoul(argv[i], 0,0);
 		}
 	}}
+
 	if(width == 0 || height == 0 || width > 32767 || height > 32767){
 		printf("\r\n<INVALID WIDTH OR HEIGHT>\r\n");
 		exit(1);
@@ -148,6 +153,13 @@ int main(int argc, char** argv){
 	}
 	SDL_PauseAudio(0);
 	/*SDL_StartTextInput();*/
+	screenrect.x = 0;
+	screenrect.y = 0;
+	screenrect.w = width;
+	screenrect.h = height;
+	screenrect2 = screenrect;
+	screenrect2.w *= display_scale;
+	screenrect2.h *= display_scale;
 	gameInit();
 	while(!shouldquit){
 		pollevents();
@@ -157,15 +169,6 @@ int main(int argc, char** argv){
 		gameStep();
 		{
 
-			SDL_Rect screenrect;
-			SDL_Rect screenrect2;
-			screenrect.x = 0;
-			screenrect.y = 0;
-			screenrect.w = width;
-			screenrect.h = height;
-			screenrect2 = screenrect;
-			screenrect2.w *= display_scale;
-			screenrect2.h *= display_scale;
 			SDL_UpdateTexture(
 				sdl_tex,
 				NULL,
