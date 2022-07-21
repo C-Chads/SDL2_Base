@@ -11,6 +11,7 @@
 
 #include "header_only_libs/font8x8_basic.h"
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_mixer.h>
 static SDL_Window *sdl_win = NULL;
 static SDL_Renderer *sdl_rend = NULL;
 static SDL_Texture *sdl_tex = NULL;
@@ -61,6 +62,10 @@ static void renderchar(unsigned char* bitmap, unsigned int p) {
 	}
 }
 
+static void writePixel(unsigned int value, unsigned long x, unsigned long y){
+	if((x < width) && (y < height)) SDL_targ[y * width + x] = value;
+}
+
 static unsigned short get_gamerbuttons(){
 	unsigned short retval = 0;
 	const unsigned char *state;
@@ -70,24 +75,41 @@ static unsigned short get_gamerbuttons(){
 	retval |= 0x2 * (state[SDL_SCANCODE_DOWN]!=0);
 	retval |= 0x4 * (state[SDL_SCANCODE_LEFT]!=0);
 	retval |= 0x8 * (state[SDL_SCANCODE_RIGHT]!=0);
-
 	retval |= 0x10 * (state[SDL_SCANCODE_RETURN]!=0);
 	retval |= 0x20 * (state[SDL_SCANCODE_RSHIFT]!=0);
 	retval |= 0x40 * (state[SDL_SCANCODE_Z]!=0);
 	retval |= 0x80 * (state[SDL_SCANCODE_X]!=0);
 	retval |= 0x100 * (state[SDL_SCANCODE_C]!=0);
-	
 	retval |= 0x200 * (state[SDL_SCANCODE_A]!=0);
 	retval |= 0x400 * (state[SDL_SCANCODE_S]!=0);
 	retval |= 0x800 * (state[SDL_SCANCODE_D]!=0);
 	return retval;
 }
 
+#define MAX_SAMPLES 4096
+Mix_Chunk* samples[MAX_SAMPLES];
+unsigned long nsamples=0;
+
+static Mix_Chunk* loadSample(char* name){
+	Mix_Chunk* v = NULL;
+	if(nsamples == MAX_SAMPLES) {exit(1);return NULL;}
+	
+	v = Mix_LoadWAV(name);
+	if(v == NULL) 
+	{exit(1);return NULL;}
+	samples[nsamples++] = v;
+	return v;
+}
+
+static void playSample(Mix_Chunk* samp){
+	Mix_PlayChannel(-1, samp, 0);
+}
+
 #include "myGame.h"
 
 
-			SDL_Rect screenrect;
-			SDL_Rect screenrect2;
+SDL_Rect screenrect;
+SDL_Rect screenrect2;
 
 int main(int argc, char** argv){
 	{int i = 1;for(i = 1;i < argc; i++){
@@ -111,13 +133,6 @@ int main(int argc, char** argv){
                "SDL_Error: %s\n", SDL_GetError());
         exit(1);
     }
-	sdl_spec.freq = 16000;
-	sdl_spec.format = AUDIO_S16MSB;
-	sdl_spec.channels = 1;
-	sdl_spec.silence = 0;
-	sdl_spec.samples = 2048;
-	sdl_spec.callback = sdl_audio_callback;
-	sdl_spec.userdata = NULL;
 	sdl_win = SDL_CreateWindow("Window",
 		SDL_WINDOWPOS_UNDEFINED,
 		SDL_WINDOWPOS_UNDEFINED,
@@ -146,13 +161,16 @@ int main(int argc, char** argv){
 			"SDL_Error: %s\n", SDL_GetError());
 		exit(1);
 	}
-	if ( SDL_OpenAudio(&sdl_spec, NULL) < 0 ){
-	  printf("\r\nSDL2 audio opening failed!\r\n"
+	if ( Mix_OpenAudio(44100,AUDIO_S16SYS, 2, 512) < 0){
+	  fprintf(stderr,"\r\nSDL2 mixer audio opening failed!\r\n"
 	  "SDL_Error: %s\r\n", SDL_GetError());
 	  exit(-1);
 	}
-	SDL_PauseAudio(0);
-	/*SDL_StartTextInput();*/
+	if(Mix_AllocateChannels(32) < 0){
+	  fprintf(stderr,"\r\nSDL2 mixer channel allocation failed!\r\n"
+	  "SDL_Error: %s\r\n", SDL_GetError());
+	  exit(-1);		
+	}
 	screenrect.x = 0;
 	screenrect.y = 0;
 	screenrect.w = width;
@@ -187,7 +205,11 @@ int main(int argc, char** argv){
 	gameClose();
 	SDL_DestroyTexture(sdl_tex);
 	SDL_DestroyRenderer(sdl_rend);
-	SDL_CloseAudio();
+	{unsigned long i;
+		for(i=0;i<nsamples;i++){
+		Mix_FreeChunk(samples[i]);
+	}}
+	Mix_CloseAudio();
    	SDL_DestroyWindow(sdl_win);
     SDL_Quit();
     return 0;
