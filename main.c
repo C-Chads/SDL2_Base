@@ -8,6 +8,8 @@
 #define STBI_NO_SIMD
 #define SDL_DISABLE_IMMINTRIN_H 1
 #endif
+#define STB_IMAGE_IMPLEMENTATION
+#include "header_only_libs/stb_image.h"
 
 #include "header_only_libs/font8x8_basic.h"
 #include <SDL2/SDL.h>
@@ -66,6 +68,148 @@ static void writePixel(unsigned int value, unsigned long x, unsigned long y){
 	if((x < width) && (y < height)) SDL_targ[y * width + x] = value;
 }
 
+static unsigned readPixel(unsigned long x, unsigned long y){
+	if((x < width) && (y < height)) return SDL_targ[y * width + x];
+	exit(1); return 0; /*fail*/
+}
+
+/*Blended*/
+static void drawPixel(unsigned int value, unsigned long x, unsigned long y){
+	unsigned int v,dr,dg,db,sa,sr,sg,sb;
+	if((x < width) && (y < height)){
+		unsigned int v = readPixel(x,y);
+		unsigned int dr = (v & 0xFF0000)/(256*256);
+		unsigned int dg = (v & 0xFF00)/256;
+		unsigned int db = (v & 0xFF);
+
+		unsigned int sa = value/(256*256*256);
+		unsigned int sr = (value & 0xFF0000)/(256*256);
+		unsigned int sg = (value & 0xFF00)/256;
+		unsigned int sb = (value & 0xFF);
+		
+		float m = (float)sa / 255.0;
+
+		dr = sr * m + dr * (1 - m);
+		dg = sg * m + dg * (1 - m);
+		db = sb * m + db * (1 - m);
+		/*
+			Normal
+		dr = dr * m + sr * (1 - m);
+		dg = dg * m + sg * (1 - m);
+		db = db * m + sb * (1 - m);
+		*/
+		/*
+			Inverted
+		dr = sr * m + dr * (1 - m);
+		dg = sg * m + dg * (1 - m);
+		db = sb * m + db * (1 - m);
+		*/
+
+		dr &= 0xFF;
+		dg &= 0xFF;
+		db &= 0xFF;
+		writePixel((dr<<16)+(dg<<8)+db,x,y);	
+	}
+}
+
+
+typedef struct{
+	int w; int h;
+	unsigned int* data;
+} img;
+#define MAX_IMAGES 4096
+img images[MAX_IMAGES];
+unsigned long nimages = 0;
+
+static void drawImage(img image, int dx, int dy, int scx, int scy){
+	int dest_x = 0;
+	int dest_start_x = 0;
+	int dest_stop_x = 0;
+	int dest_y = 0;
+	int dest_start_y = 0;
+	int dest_stop_y = 0;
+
+	/*image off lefthand side of screen?*/
+	dest_start_x =dx;
+	if(dest_start_x < 0){
+		dest_start_x =0;
+	} 
+	/*at the lower Y boundary?*/
+	dest_start_y =dy;
+	if(dest_start_y < 0){
+		dest_start_y =0;
+	}
+	/*At the upper X boundary? (Righthand side of screen)*/
+	dest_stop_x = dx + scx * (int)image.w;
+	if(dest_stop_x >= (int)width){
+		dest_stop_x = width-1; /*lte comparison*/
+	}
+	dest_stop_y = dy + scy * (int)image.h;
+	if(dest_stop_y >= (int)height){
+		dest_stop_y = height-1; /*lte comparison*/
+	}
+
+	if(dy + scy * image.h < 0) return;
+	if(dx + scx * image.w < 0) return;
+	if(dest_start_x > width) return;
+	if(dest_start_y > height) return;
+
+	for(dest_y = dest_start_y; dest_y <= dest_stop_y; dest_y++)
+	for(dest_x = dest_start_x; dest_x <= dest_stop_x; dest_x++)
+	{	int diffx, diffy;
+		diffx = dest_x - dx;
+		diffx /= scx;
+		diffy = dest_y - dy;
+		diffy /= scy;
+		drawPixel(image.data[diffx + image.w * diffy],dest_x,dest_y);
+	}
+}
+
+static void writeImage(img image, int dx, int dy, int scx, int scy){
+	int dest_x = 0;
+	int dest_start_x = 0;
+	int dest_stop_x = 0;
+	int dest_y = 0;
+	int dest_start_y = 0;
+	int dest_stop_y = 0;
+
+	/*image off lefthand side of screen?*/
+	dest_start_x =dx;
+	if(dest_start_x < 0){
+		dest_start_x =0;
+	} 
+	/*at the lower Y boundary?*/
+	dest_start_y =dy;
+	if(dest_start_y < 0){
+		dest_start_y =0;
+	}
+	/*At the upper X boundary? (Righthand side of screen)*/
+	dest_stop_x = dx + scx * (int)image.w;
+	if(dest_stop_x >= (int)width){
+		dest_stop_x = width-1; /*lte comparison*/
+	}
+	if(dest_stop_x < 0) return;
+	
+	dest_stop_y = dy + scy * (int)image.h;
+	if(dest_stop_y >= (int)height){
+		dest_stop_y = height-1; /*lte comparison*/
+	}
+	if(dest_stop_y < 0) return;
+
+	if(dest_start_x > width) return;
+	if(dest_start_y > height) return;
+
+	for(dest_y = dest_start_y; dest_y <= dest_stop_y; dest_y++)
+	for(dest_x = dest_start_x; dest_x <= dest_stop_x; dest_x++)
+	{	int diffx, diffy;
+		diffx = dest_x - dx;
+		diffx /= scx;
+		diffy = dest_y - dy;
+		diffy /= scy;
+		writePixel(image.data[diffx + image.w * diffy],dest_x,dest_y);
+	}
+}
+
 static unsigned short get_gamerbuttons(){
 	unsigned short retval = 0;
 	const unsigned char *state;
@@ -103,6 +247,35 @@ static Mix_Chunk* loadSample(char* name){
 
 static void playSample(Mix_Chunk* samp){
 	Mix_PlayChannel(-1, samp, 0);
+}
+
+
+
+static img loadImage(const char* path){
+	int i;
+	img d;
+	int w, h, comp;
+	
+	unsigned char* data;
+	if(nimages == MAX_IMAGES) {exit(1); return d;}
+	data = stbi_load(path, &w, &h, &comp, 4);
+	if(data == NULL) {exit(1); return d;}
+	for(i = 0; i < w * h; i++){
+		unsigned int r,g,b,a;
+		r = data[i*4+0];
+		g = data[i*4+1];
+		b = data[i*4+2];
+		a = data[i*4+3];
+		data[i*4+0] = a;
+		data[i*4+1] = r;
+		data[i*4+2] = g;
+		data[i*4+3] = b;
+	}
+	d.w = w;
+	d.h = h;
+	d.data = (unsigned int*)data;
+	images[nimages++] = d;
+	return d;
 }
 
 #include "myGame.h"
@@ -146,7 +319,7 @@ int main(int argc, char** argv){
 			"SDL_Error: %s\n", SDL_GetError());
 		exit(1);
 	}
-	sdl_rend = SDL_CreateRenderer(sdl_win, -1, SDL_RENDERER_ACCELERATED);
+	sdl_rend = SDL_CreateRenderer(sdl_win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 	if(!sdl_rend){
 		printf("SDL2 renderer creation failed.\n"
 			"SDL_Error: %s\n", SDL_GetError());
@@ -208,6 +381,10 @@ int main(int argc, char** argv){
 	{unsigned long i;
 		for(i=0;i<nsamples;i++){
 		Mix_FreeChunk(samples[i]);
+	}}
+	{unsigned long i;
+		for(i=0;i<nimages;i++){
+		free(images[i].data);
 	}}
 	Mix_CloseAudio();
    	SDL_DestroyWindow(sdl_win);
