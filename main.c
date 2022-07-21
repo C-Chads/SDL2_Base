@@ -125,7 +125,7 @@ static void drawPixel(unsigned int value, unsigned long x, unsigned long y){
 		dr &= 0xFF;
 		dg &= 0xFF;
 		db &= 0xFF;
-		writePixel((dr<<16)+(dg<<8)+db,x,y);	
+		writePixel((dr<<16)+(dg<<8)+db,x,y);
 	}
 }
 
@@ -157,19 +157,21 @@ static void drawImage(img image, int dx, int dy, int scx, int scy){
 		dest_start_y =0;
 	}
 	/*At the upper X boundary? (Righthand side of screen)*/
-	dest_stop_x = dx + scx * (int)image.w;
+	dest_stop_x = dx + scx * (int)(image.w-1);
 	if(dest_stop_x >= (int)width){
 		dest_stop_x = width-1; /*lte comparison*/
 	}
-	dest_stop_y = dy + scy * (int)image.h;
+	if(dest_stop_x < 0) return;
+	/*Upper Y Boundary?*/
+	dest_stop_y = dy + scy * (int)(image.h-1);
 	if(dest_stop_y >= (int)height){
 		dest_stop_y = height-1; /*lte comparison*/
 	}
+	if(dest_stop_y < 0) return;
 
-	if(dy + scy * image.h < 0) return;
-	if(dx + scx * image.w < 0) return;
-	if(dest_start_x > width) return;
-	if(dest_start_y > height) return;
+	/*Prevent starting off-screen*/
+	if(dest_start_x > (int)width) return;
+	if(dest_start_y > (int)height) return;
 
 	for(dest_y = dest_start_y; dest_y <= dest_stop_y; dest_y++)
 	for(dest_x = dest_start_x; dest_x <= dest_stop_x; dest_x++)
@@ -201,19 +203,21 @@ static void writeImage(img image, int dx, int dy, int scx, int scy){
 		dest_start_y =0;
 	}
 	/*At the upper X boundary? (Righthand side of screen)*/
-	dest_stop_x = dx + scx * (int)image.w;
+	dest_stop_x = dx + scx * (int)(image.w-1);
 	if(dest_stop_x >= (int)width){
 		dest_stop_x = width-1; /*lte comparison*/
 	}
 	if(dest_stop_x < 0) return;
-	
-	dest_stop_y = dy + scy * (int)image.h;
+	/*Upper Y Boundary?*/
+	dest_stop_y = dy + scy * (int)(image.h-1);
 	if(dest_stop_y >= (int)height){
 		dest_stop_y = height-1; /*lte comparison*/
 	}
 	if(dest_stop_y < 0) return;
-	if(dest_start_x > width) return;
-	if(dest_start_y > height) return;
+
+	/*Prevent starting off-screen*/
+	if(dest_start_x > (int)width) return;
+	if(dest_start_y > (int)height) return;
 
 	for(dest_y = dest_start_y; dest_y <= dest_stop_y; dest_y++)
 	for(dest_x = dest_start_x; dest_x <= dest_stop_x; dest_x++)
