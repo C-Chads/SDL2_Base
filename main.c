@@ -294,6 +294,11 @@ static img loadImage(const char* path){
 	return d;
 }
 
+
+static float randf(){
+	return ((float)rand()/(float)RAND_MAX);
+}
+
 #include "myGame.h"
 
 
