@@ -22,6 +22,7 @@ static SDL_AudioSpec sdl_spec = {0};
 static int audio_left = 0;
 static unsigned char abuf[ABUF_LEN];
 static unsigned int *SDL_targ = NULL; /*Default to all black.*/
+static unsigned int *raster_effect_buffer = NULL;
 static unsigned int width = 640;
 static unsigned int height = 480;
 static unsigned int display_scale = 1;
@@ -71,6 +72,22 @@ static void writePixel(unsigned int value, unsigned long x, unsigned long y){
 static unsigned readPixel(unsigned long x, unsigned long y){
 	if((x < width) && (y < height)) return SDL_targ[y * width + x];
 	exit(1); return 0; /*fail*/
+}
+
+static int modint(int a, int b){
+	return (a%b+b)%b;
+}
+
+static void hshift(int (*func)(int)){
+	unsigned long y = 0;
+	for(y=0; y < height; y++){
+		int shift;
+		memcpy(raster_effect_buffer,			SDL_targ + y * width, 4*width);
+		memcpy(raster_effect_buffer+width,		SDL_targ + y * width, 4*width);
+		shift = func(y);
+		shift = modint(shift,width);
+		memcpy(SDL_targ+ y * width, raster_effect_buffer + shift, 4*width);
+	}
 }
 
 /*Blended*/
@@ -195,7 +212,6 @@ static void writeImage(img image, int dx, int dy, int scx, int scy){
 		dest_stop_y = height-1; /*lte comparison*/
 	}
 	if(dest_stop_y < 0) return;
-
 	if(dest_start_x > width) return;
 	if(dest_start_y > height) return;
 
@@ -300,6 +316,13 @@ int main(int argc, char** argv){
 		exit(1);
 	}
 	SDL_targ = calloc(1, width * height * 4);
+	if(!SDL_targ) exit(1);
+	raster_effect_buffer = NULL;
+	if(height>width)
+		raster_effect_buffer = malloc(4*height*2);
+	else
+		raster_effect_buffer = malloc(4*width*2);
+	if(!raster_effect_buffer) exit(1);
     if(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0)
     {
         printf("SDL2 could not be initialized!\n"
