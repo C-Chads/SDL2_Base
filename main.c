@@ -309,6 +309,8 @@ static float randf(){
 SDL_Rect screenrect;
 SDL_Rect screenrect2;
 
+/**/
+
 int main(int argc, char** argv){
 	{int i = 1;for(i = 1;i < argc; i++){
 		if(strprefix("-w", argv[i-1])){

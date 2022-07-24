@@ -7,7 +7,7 @@
 #include <time.h>
 #include <stdlib.h>
 Mix_Chunk* popwav;
-unsigned int sfx_tmr = 60;
+unsigned sfx_tmr = 60;
 img bubble1;
 img bubble2;
 
@@ -50,7 +50,9 @@ static void gameStep(){
 	if(sfx_tmr) sfx_tmr--;
 	pollevents();
 	btns = get_gamerbuttons();
-	if(sfx_tmr == 0)if(btns & 0x40) {playSample(popwav);sfx_tmr = 60;}
+	if(sfx_tmr == 0) 
+		if(btns & 0x40) 
+			{playSample(popwav);sfx_tmr = 60;}
 	{unsigned int x = 0;unsigned int y = 0;
 		for(y=0;y<height;y++)for(x=0;x<width;x++)
 			writePixel(0x2222AA,x,y);
