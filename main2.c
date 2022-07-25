@@ -12,8 +12,6 @@
 #include "header_only_libs/stb_image.h"
 #include "header_only_libs/3dMath.h"
 #include "header_only_libs/chadphys.h"
-
-#include "header_only_libs/font8x8_basic.h"
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_opengl.h>
 #include <SDL2/SDL_mixer.h>
