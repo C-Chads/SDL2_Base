@@ -10,7 +10,7 @@
   license: CC0 1.0 (public domain)
            found at https://creativecommons.org/publicdomain/zero/1.0/
            + additional waiver of all IP
-  version: 0.860d
+  version: 0.902d
 
   Before including the library, define S3L_PIXEL_FUNCTION to the name of the
   function you'll be using to draw single pixels (this function will be called
@@ -82,16 +82,6 @@
   -S3L_FRACTIONS_PER_UNIT to S3L_FRACTIONS_PER_UNIT horizontally (x),
   vertical size (y) depends on the aspect ratio (S3L_RESOLUTION_X and
   S3L_RESOLUTION_Y). Camera FOV is defined by focal length in S3L_Units.
-
-           y ^
-             |  _
-             |  /| z
-         ____|_/__
-        |    |/   |
-     -----[0,0,0]-|-----> x
-        |____|____|
-             |    
-             |
 
   Rotations use Euler angles and are generally in the extrinsic Euler angles in
   ZXY order (by Z, then by X, then by Y). Positive rotation about an axis
@@ -171,20 +161,56 @@
   #define S3L_RESOLUTION_Y S3L_resolutionY
 #endif
 
+#ifndef S3L_USE_WIDER_TYPES
+  /** If true, the library will use wider data types which will largely supress
+  many rendering bugs and imprecisions happening due to overflows, but this will
+  also consumer more RAM and may potentially be slower on computers with smaller
+  native integer. */
+
+  #define S3L_USE_WIDER_TYPES 0
+#endif
+
+#ifndef S3L_SIN_METHOD
+  /** Says which method should be used for computing sin/cos functions, possible
+  values: 0 (lookup table, takes more program memory), 1 (Bhaskara's
+  approximation, slower). This may cause the trigonometric functions give
+  slightly different results. */
+  #define S3L_SIN_METHOD 0
+#endif
+
 /** Units of measurement in 3D space. There is S3L_FRACTIONS_PER_UNIT in one
 spatial unit. By dividing the unit into fractions we effectively achieve a
 fixed point arithmetic. The number of fractions is a constant that serves as
 1.0 in floating point arithmetic (normalization etc.). */
 
-typedef int32_t S3L_Unit;    
-
+typedef
+#if S3L_USE_WIDER_TYPES
+  int64_t    
+#else
+  int32_t 
+#endif
+  S3L_Unit;
+    
 /** How many fractions a spatial unit is split into. This is NOT SUPPOSED TO
 BE REDEFINED, so rather don't do it (otherwise things may overflow etc.). */
 
 #define S3L_FRACTIONS_PER_UNIT 512
 
-typedef int16_t S3L_ScreenCoord;
-typedef uint16_t S3L_Index;
+typedef 
+#if S3L_USE_WIDER_TYPES
+  int32_t 
+#else
+  int16_t
+#endif
+  S3L_ScreenCoord;
+
+typedef 
+#if S3L_USE_WIDER_TYPES
+  uint32_t
+#else
+  uint16_t
+#endif
+  S3L_Index;
 
 #ifndef S3L_NEAR_CROSS_STRATEGY
   /** Specifies how the library will handle triangles that partially cross the
@@ -203,8 +229,7 @@ typedef uint16_t S3L_Index;
        expensive, but the results will be geometrically correct, even though
        barycentric correction is not performed so texturing artifacts will
        appear. Can be ideal with S3L_FLAT.
-    3: NOT IMPLEMENTED YET
-       Perform both geometrical and barycentric correction of triangle crossing
+    3: Perform both geometrical and barycentric correction of triangle crossing
        the near plane. This is significantly more expensive but results in
        correct rendering. */
 
@@ -249,7 +274,7 @@ typedef uint16_t S3L_Index;
 #endif
 
 #if S3L_PERSPECTIVE_CORRECTION
-#define S3L_COMPUTE_DEPTH 1 // PC inevitably computes depth, so enable it
+  #define S3L_COMPUTE_DEPTH 1 // PC inevitably computes depth, so enable it
 #endif
 
 #ifndef S3L_COMPUTE_DEPTH
@@ -556,7 +581,7 @@ typedef struct
 
   S3L_Unit barycentric[3]; /**< Barycentric coords correspond to the three
                               vertices. These serve to locate the pixel on a
-                              triangle and interpolate values between it's
+                              triangle and interpolate values between its
                               three points. Each one goes from 0 to
                               S3L_FRACTIONS_PER_UNIT (including), but due to
                               rounding error may fall outside this range (you
@@ -608,7 +633,7 @@ S3L_Unit S3L_sqrt(S3L_Unit value);
   can be useful e.g. for drawing sprites. The w component of input and result
   holds the point size. If this size is 0 in the result, the sprite is outside
   the view. */
-void project3DPointToScreen(
+void S3L_project3DPointToScreen(
   S3L_Vec4 point,
   S3L_Camera camera,
   S3L_Vec4 *result);
@@ -880,6 +905,7 @@ static inline int8_t S3L_stencilTest(
 
 #define S3L_SIN_TABLE_LENGTH 128
 
+#if S3L_SIN_METHOD == 0
 static const S3L_Unit S3L_sinTable[S3L_SIN_TABLE_LENGTH] =
 {
   /* 511 was chosen here as a highest number that doesn't overflow during
@@ -950,6 +976,7 @@ static const S3L_Unit S3L_sinTable[S3L_SIN_TABLE_LENGTH] =
   (510*S3L_FRACTIONS_PER_UNIT)/511, (510*S3L_FRACTIONS_PER_UNIT)/511, 
   (510*S3L_FRACTIONS_PER_UNIT)/511, (510*S3L_FRACTIONS_PER_UNIT)/511
 };
+#endif
 
 #define S3L_SIN_TABLE_UNIT_STEP\
   (S3L_FRACTIONS_PER_UNIT / (S3L_SIN_TABLE_LENGTH * 4))
@@ -1322,6 +1349,7 @@ void S3L_mat4Xmat4(S3L_Mat4 m1, S3L_Mat4 m2)
 
 S3L_Unit S3L_sin(S3L_Unit x)
 {
+#if S3L_SIN_METHOD == 0
   x = S3L_wrap(x / S3L_SIN_TABLE_UNIT_STEP,S3L_SIN_TABLE_LENGTH * 4);
   int8_t positive = 1;
 
@@ -1344,10 +1372,37 @@ S3L_Unit S3L_sin(S3L_Unit x)
   }
 
   return positive ? S3L_sinTable[x] : -1 * S3L_sinTable[x];
+#else
+  int8_t sign = 1;
+    
+  if (x < 0) // odd function
+  {
+    x *= -1;
+    sign = -1;
+  }
+    
+  x %= S3L_FRACTIONS_PER_UNIT;
+  
+  if (x > S3L_FRACTIONS_PER_UNIT / 2)
+  {
+    x -= S3L_FRACTIONS_PER_UNIT / 2;
+    sign *= -1;
+  }
+
+  S3L_Unit tmp = S3L_FRACTIONS_PER_UNIT - 2 * x;
+ 
+  #define _PI2 ((S3L_Unit) (9.8696044 * S3L_FRACTIONS_PER_UNIT))
+  return sign * // Bhaskara's approximation
+    (((32 * x * _PI2) / S3L_FRACTIONS_PER_UNIT) * tmp) / 
+    ((_PI2 * (5 * S3L_FRACTIONS_PER_UNIT - (8 * x * tmp) / 
+      S3L_FRACTIONS_PER_UNIT)) / S3L_FRACTIONS_PER_UNIT);
+  #undef _PI2
+#endif
 }
 
 S3L_Unit S3L_asin(S3L_Unit x)
 {
+#if S3L_SIN_METHOD == 0
   x = S3L_clamp(x,-S3L_FRACTIONS_PER_UNIT,S3L_FRACTIONS_PER_UNIT);
 
   int8_t sign = 1;
@@ -1358,9 +1413,7 @@ S3L_Unit S3L_asin(S3L_Unit x)
     x *= -1;
   }
 
-  int16_t low = 0;
-  int16_t high = S3L_SIN_TABLE_LENGTH -1;
-  int16_t middle;
+  int16_t low = 0, high = S3L_SIN_TABLE_LENGTH -1, middle;
 
   while (low <= high) // binary search
   {
@@ -1379,6 +1432,27 @@ S3L_Unit S3L_asin(S3L_Unit x)
   middle *= S3L_SIN_TABLE_UNIT_STEP;
 
   return sign * middle;
+#else
+  S3L_Unit low = -1 * S3L_FRACTIONS_PER_UNIT / 4,
+           high = S3L_FRACTIONS_PER_UNIT / 4,
+           middle;
+    
+  while (low <= high) // binary search
+  {
+    middle = (low + high) / 2;
+
+    S3L_Unit v = S3L_sin(middle);
+
+    if (v > x)
+      high = middle - 1;
+    else if (v < x)
+      low = middle + 1;
+    else
+      break;
+  }
+
+  return middle;
+#endif
 }
 
 S3L_Unit S3L_cos(S3L_Unit x)
@@ -1598,7 +1672,7 @@ static inline void S3L_perspectiveDivide(S3L_Vec4 *vector,
   vector->y = (vector->y * focalLength) / vector->z;
 }
 
-void project3DPointToScreen(
+void S3L_project3DPointToScreen(
   S3L_Vec4 point,
   S3L_Camera camera,
   S3L_Vec4 *result)
@@ -1852,6 +1926,16 @@ void S3L_newFrame(void)
   S3L_zBufferClear();
   S3L_stencilBufferClear();
 }
+
+/* 
+  the following serves to communicate info about if the triangle has been split
+  and how the barycentrics should be remapped.
+*/
+uint8_t _S3L_projectedTriangleState = 0; // 0 = normal, 1 = cut, 2 = split
+
+#if S3L_NEAR_CROSS_STRATEGY == 3
+S3L_Vec4 _S3L_triangleRemapBarycentrics[6];
+#endif
 
 void S3L_drawTriangle(
   S3L_Vec4 point0,
@@ -2207,7 +2291,6 @@ void S3L_drawTriangle(
 #endif
 
       // draw the row -- inner loop:
-
       for (S3L_ScreenCoord x = lXClipped; x < rXClipped; ++x)
       {
         int8_t testsPassed = 1;
@@ -2336,6 +2419,36 @@ void S3L_drawTriangle(
 
           *barycentric2 =
             S3L_FRACTIONS_PER_UNIT - *barycentric0 - *barycentric1;
+#endif
+
+#if S3L_NEAR_CROSS_STRATEGY == 3
+
+if (_S3L_projectedTriangleState != 0)
+{
+  S3L_Unit newBarycentric[3];
+
+  newBarycentric[0] = S3L_interpolateBarycentric(
+    _S3L_triangleRemapBarycentrics[0].x,
+    _S3L_triangleRemapBarycentrics[1].x,
+    _S3L_triangleRemapBarycentrics[2].x,
+    p.barycentric); 
+
+  newBarycentric[1] = S3L_interpolateBarycentric(
+    _S3L_triangleRemapBarycentrics[0].y,
+    _S3L_triangleRemapBarycentrics[1].y,
+    _S3L_triangleRemapBarycentrics[2].y,
+    p.barycentric); 
+
+  newBarycentric[2] = S3L_interpolateBarycentric(
+    _S3L_triangleRemapBarycentrics[0].z,
+    _S3L_triangleRemapBarycentrics[1].z,
+    _S3L_triangleRemapBarycentrics[2].z,
+    p.barycentric); 
+
+  p.barycentric[0] = newBarycentric[0];
+  p.barycentric[1] = newBarycentric[1];
+  p.barycentric[2] = newBarycentric[2];
+}
 #endif
           S3L_PIXEL_FUNCTION(&p);
         } // tests passed
@@ -2569,9 +2682,10 @@ void _S3L_mapProjectedVertexToScreen(S3L_Vec4 *vertex, S3L_Unit focalLength)
 /**
   Projects a triangle to the screen. If enabled, a triangle can be potentially
   subdivided into two if it crosses the near plane, in which case two projected
-  triangles are returned (return value will be 1).
+  triangles are returned (the info about splitting or cutting the triangle is
+  passed in global variables, see above).
 */
-uint8_t _S3L_projectTriangle(
+void _S3L_projectTriangle(
   const S3L_Model3D *model,
   S3L_Index triangleIndex,
   S3L_Mat4 matrix,
@@ -2582,9 +2696,9 @@ uint8_t _S3L_projectTriangle(
   _S3L_projectVertex(model,triangleIndex,1,matrix,&(transformed[1]));
   _S3L_projectVertex(model,triangleIndex,2,matrix,&(transformed[2]));
 
-  uint8_t result = 0;
+  _S3L_projectedTriangleState = 0;
 
-#if S3L_NEAR_CROSS_STRATEGY == 2
+#if S3L_NEAR_CROSS_STRATEGY == 2 || S3L_NEAR_CROSS_STRATEGY == 3
   uint8_t infront = 0;
   uint8_t behind = 0;
   uint8_t infrontI[3];
@@ -2602,6 +2716,15 @@ uint8_t _S3L_projectTriangle(
       behind++;
     }
 
+#if S3L_NEAR_CROSS_STRATEGY == 3
+    for (int i = 0; i < 3; ++i)
+      S3L_vec4Init(&(_S3L_triangleRemapBarycentrics[i]));
+
+    _S3L_triangleRemapBarycentrics[0].x = S3L_FRACTIONS_PER_UNIT;
+    _S3L_triangleRemapBarycentrics[1].y = S3L_FRACTIONS_PER_UNIT;
+    _S3L_triangleRemapBarycentrics[2].z = S3L_FRACTIONS_PER_UNIT;
+#endif
+
 #define interpolateVertex \
   S3L_Unit ratio =\
     ((transformed[be].z - S3L_NEAR) * S3L_FRACTIONS_PER_UNIT) /\
@@ -2612,7 +2735,15 @@ uint8_t _S3L_projectTriangle(
   transformed[in].y = transformed[be].y -\
     ((transformed[be].y - transformed[in].y) * ratio) /\
       S3L_FRACTIONS_PER_UNIT;\
-  transformed[in].z = S3L_NEAR;
+  transformed[in].z = S3L_NEAR;\
+  if (beI != 0) {\
+    beI->x = (beI->x * ratio) / S3L_FRACTIONS_PER_UNIT;\
+    beI->y = (beI->y * ratio) / S3L_FRACTIONS_PER_UNIT;\
+    beI->z = (beI->z * ratio) / S3L_FRACTIONS_PER_UNIT;\
+    ratio = S3L_FRACTIONS_PER_UNIT - ratio;\
+    beI->x += (beB->x * ratio) / S3L_FRACTIONS_PER_UNIT;\
+    beI->y += (beB->y * ratio) / S3L_FRACTIONS_PER_UNIT;\
+    beI->z += (beB->z * ratio) / S3L_FRACTIONS_PER_UNIT; }
   
   if (infront == 2)
   {
@@ -2620,8 +2751,17 @@ uint8_t _S3L_projectTriangle(
     for (uint8_t i = 0; i < 2; ++i)
     {
       uint8_t be = behindI[0], in = infrontI[i];
-    
+
+#if S3L_NEAR_CROSS_STRATEGY == 3
+      S3L_Vec4 *beI = &(_S3L_triangleRemapBarycentrics[in]),
+               *beB = &(_S3L_triangleRemapBarycentrics[be]);
+#else
+      S3L_Vec4 *beI = 0, *beB = 0;
+#endif
+
       interpolateVertex
+
+      _S3L_projectedTriangleState = 1;
     }
   }
   else if (infront == 1)
@@ -2631,12 +2771,33 @@ uint8_t _S3L_projectTriangle(
     transformed[4] = transformed[infrontI[0]];
     transformed[5] = transformed[infrontI[0]];
 
+#if S3L_NEAR_CROSS_STRATEGY == 3
+  _S3L_triangleRemapBarycentrics[3] =
+    _S3L_triangleRemapBarycentrics[behindI[1]];
+  _S3L_triangleRemapBarycentrics[4] =
+    _S3L_triangleRemapBarycentrics[infrontI[0]];
+  _S3L_triangleRemapBarycentrics[5] =
+    _S3L_triangleRemapBarycentrics[infrontI[0]];
+#endif
+
     for (uint8_t i = 0; i < 2; ++i)
     {
       uint8_t be = behindI[i], in = i + 4;
 
+#if S3L_NEAR_CROSS_STRATEGY == 3
+      S3L_Vec4 *beI = &(_S3L_triangleRemapBarycentrics[in]),
+               *beB = &(_S3L_triangleRemapBarycentrics[be]);
+#else
+      S3L_Vec4 *beI = 0, *beB = 0;
+#endif
+
       interpolateVertex
     }
+
+#if S3L_NEAR_CROSS_STRATEGY == 3
+    _S3L_triangleRemapBarycentrics[infrontI[0]] = 
+      _S3L_triangleRemapBarycentrics[4];
+#endif
 
     transformed[infrontI[0]] = transformed[4];
 
@@ -2644,7 +2805,7 @@ uint8_t _S3L_projectTriangle(
     _S3L_mapProjectedVertexToScreen(&transformed[4],focalLength);
     _S3L_mapProjectedVertexToScreen(&transformed[5],focalLength);
 
-    result = 1;
+    _S3L_projectedTriangleState = 2;
   }
 
 #undef interpolateVertex
@@ -2653,8 +2814,6 @@ uint8_t _S3L_projectTriangle(
   _S3L_mapProjectedVertexToScreen(&transformed[0],focalLength);
   _S3L_mapProjectedVertexToScreen(&transformed[1],focalLength);
   _S3L_mapProjectedVertexToScreen(&transformed[2],focalLength);
-
-  return result;
 }
 
 void S3L_drawScene(S3L_Scene scene)
@@ -2709,7 +2868,7 @@ void S3L_drawScene(S3L_Scene scene)
          already projected vertices, but after some testing this was abandoned,
          no gain was seen. */
 
-      uint8_t split = _S3L_projectTriangle(model,triangleIndex,matFinal,
+      _S3L_projectTriangle(model,triangleIndex,matFinal,
         scene.camera.focalLength,transformed);
 
       if (S3L_triangleIsVisible(transformed[0],transformed[1],transformed[2],
@@ -2720,11 +2879,18 @@ void S3L_drawScene(S3L_Scene scene)
         S3L_drawTriangle(transformed[0],transformed[1],transformed[2],modelIndex,
           triangleIndex);
 
-        if (split) // draw potential subtriangle
+        if (_S3L_projectedTriangleState == 2) // draw potential subtriangle
+        {
+#if S3L_NEAR_CROSS_STRATEGY == 3
+          _S3L_triangleRemapBarycentrics[0] = _S3L_triangleRemapBarycentrics[3];
+          _S3L_triangleRemapBarycentrics[1] = _S3L_triangleRemapBarycentrics[4];
+          _S3L_triangleRemapBarycentrics[2] = _S3L_triangleRemapBarycentrics[5];
+#endif
+
           S3L_drawTriangle(transformed[3],transformed[4],transformed[5],
           modelIndex, triangleIndex);
+        }
 #else
-        S3L_UNUSED(split);
 
         if (S3L_sortArrayLength >= S3L_MAX_TRIANGES_DRAWN)
           break;
@@ -2799,15 +2965,24 @@ void S3L_drawScene(S3L_Scene scene)
        require a lot of memory, which for small resolutions could be even
        worse than z-bufer. So this seems to be the best way memory-wise. */
 
-    uint8_t split = _S3L_projectTriangle(model,triangleIndex,matFinal,
-      scene.camera.focalLength,transformed);
+    _S3L_projectTriangle(model,triangleIndex,matFinal,scene.camera.focalLength,
+      transformed);
 
     S3L_drawTriangle(transformed[0],transformed[1],transformed[2],modelIndex,
       triangleIndex);
         
-    if (split)
+    if (_S3L_projectedTriangleState == 2)
+    {
+#if S3L_NEAR_CROSS_STRATEGY == 3
+      _S3L_triangleRemapBarycentrics[0] = _S3L_triangleRemapBarycentrics[3];
+      _S3L_triangleRemapBarycentrics[1] = _S3L_triangleRemapBarycentrics[4];
+      _S3L_triangleRemapBarycentrics[2] = _S3L_triangleRemapBarycentrics[5];
+#endif
+
       S3L_drawTriangle(transformed[3],transformed[4],transformed[5],
       modelIndex, triangleIndex);
+    }
+
   }
 #endif
 }
