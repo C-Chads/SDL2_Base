@@ -49,6 +49,13 @@ static void pollevents(){
 		if(ev.type == SDL_QUIT) shouldquit = 0xFFff; /*Magic value for quit.*/
 	}
 }
+static int mousex = 0, mousey = 0, mouse1 = 0, mouse2 = 0, mouse3 = 0;
+static void mouse_update(){
+	unsigned a = SDL_GetMouseState(&mousex, &mousey);
+	mouse1 = ((a & SDL_BUTTON_LMASK) != 0);
+	mouse2 = ((a & SDL_BUTTON_RMASK) != 0);
+	mouse3 = ((a & SDL_BUTTON_MMASK) != 0);
+}
 
 static void renderchar(unsigned char* bitmap, unsigned int p) {
 	unsigned int x, y, _x, _y;
@@ -92,19 +99,20 @@ static void hshift(int (*func)(int)){
 
 /*Blended*/
 static void drawPixel(unsigned int value, unsigned long x, unsigned long y){
-	unsigned int v,dr,dg,db,sa,sr,sg,sb;
+	unsigned v,dr,dg,db,sa,sr,sg,sb;
+	float m;
 	if((x < width) && (y < height)){
-		unsigned int v = readPixel(x,y);
-		unsigned int dr = (v & 0xFF0000)/(256*256);
-		unsigned int dg = (v & 0xFF00)/256;
-		unsigned int db = (v & 0xFF);
+		v = readPixel(x,y);
+		dr = (v & 0xFF0000)/(256*256);
+		dg = (v & 0xFF00)/256;
+		db = (v & 0xFF);
 
-		unsigned int sa = value/(256*256*256);
-		unsigned int sr = (value & 0xFF0000)/(256*256);
-		unsigned int sg = (value & 0xFF00)/256;
-		unsigned int sb = (value & 0xFF);
+		sa = value/(256*256*256);
+		sr = (value & 0xFF0000)/(256*256);
+		sg = (value & 0xFF00)/256;
+		sb = (value & 0xFF);
 		
-		float m = (float)sa / 255.0;
+		m = (float)sa / 255.0;
 
 		dr = sr * m + dr * (1 - m);
 		dg = sg * m + dg * (1 - m);

@@ -22,7 +22,7 @@ static SDL_Window *sdl_win = NULL;
 static SDL_GLContext* sdl_glcontext = NULL;
 static int shouldquit = 0;
 static int width = 640, height = 480, display_scale = 1;
-
+static int mousex = 0, mousey = 0, mouse1 = 0, mouse2 = 0, mouse3 = 0;
 
 static int modint(int a, int b){
 	return (a%b+b)%b;
@@ -33,6 +33,12 @@ static void pollevents(){
 	while(SDL_PollEvent(&ev)){
 		if(ev.type == SDL_QUIT) shouldquit = 0xFFff; /*Magic value for quit.*/
 	}
+}
+static void mouse_update(){
+	unsigned a = SDL_GetMouseState(&mousex, &mousey);
+	mouse1 = ((a & SDL_BUTTON_LMASK) != 0);
+	mouse2 = ((a & SDL_BUTTON_RMASK) != 0);
+	mouse3 = ((a & SDL_BUTTON_MMASK) != 0);
 }
 
 #define MAX_SAMPLES 8192
