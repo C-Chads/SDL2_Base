@@ -10,6 +10,8 @@
 #endif
 #define STB_IMAGE_IMPLEMENTATION
 #include "header_only_libs/stb_image.h"
+#include "header_only_libs/3dMath.h"
+#include "header_only_libs/chadphys.h"
 
 #include "header_only_libs/font8x8_basic.h"
 #include <SDL2/SDL.h>
@@ -48,6 +50,57 @@ static Mix_Chunk* loadSample(char* name){
 	{exit(1);return NULL;}
 	samples[nsamples++] = v;
 	return v;
+}
+
+GLuint loadRGBTexture(unsigned char* buf, unsigned int w, unsigned int h) {
+	GLuint t = 0;
+	glGenTextures(1, &t);
+	glBindTexture(GL_TEXTURE_2D, t);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexImage2D(GL_TEXTURE_2D, 0, 3, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, buf);
+	return t;
+}
+
+GLuint loadRGBATexture(unsigned char* buf, unsigned int w, unsigned int h) {
+	GLuint t = 0;
+	glGenTextures(1, &t);
+	glBindTexture(GL_TEXTURE_2D, t);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexImage2D(GL_TEXTURE_2D, 0, 4, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, buf);
+	return t;
+}
+
+GLuint createModelDisplayList(
+	// HUGE important note! these depend on the math library using
+	// f_ as float and not double!
+	// Remember that!
+	vec3* points, uint npoints, vec3* colors, vec3* normals, vec3* texcoords
+	) {
+	GLuint ret = 0;
+	if (!points)
+		return 0;
+	ret = glGenLists(1);
+	glNewList(ret, GL_COMPILE);
+	glBegin(GL_TRIANGLES);
+	for (uint i = 0; i < npoints; i++) {
+		if (colors) {
+			glColor3f(colors[i].d[0], colors[i].d[1], colors[i].d[2]);
+		}
+		if (texcoords)
+			glTexCoord2f(texcoords[i].d[0], texcoords[i].d[1]);
+		if (normals)
+			glNormal3f(normals[i].d[0], normals[i].d[1], normals[i].d[2]);
+		glVertex3f(points[i].d[0], points[i].d[1], points[i].d[2]);
+	}
+	glEnd();
+	glEndList();
+	return ret;
 }
 
 static void playSample(Mix_Chunk* samp){
