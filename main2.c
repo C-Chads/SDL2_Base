@@ -22,25 +22,55 @@ static SDL_Window *sdl_win = NULL;
 static SDL_GLContext* sdl_glcontext = NULL;
 static int shouldquit = 0;
 static int width = 640, height = 480, display_scale = 1;
-static int mousex = 0, mousey = 0, mouse1 = 0, mouse2 = 0, mouse3 = 0;
+static int mousex = 0, mousey = 0, mousexrel=0, mouseyrel=0;
 
 static int modint(int a, int b){
 	return (a%b+b)%b;
 }
 
+void onClick(int btn, int state);
+
+static int lockCursor(int state){
+	return SDL_SetRelativeMouseMode(state);
+}
+
 static void pollevents(){
 	SDL_Event ev;
 	while(SDL_PollEvent(&ev)){
-		if(ev.type == SDL_QUIT) shouldquit = 0xFFff; /*Magic value for quit.*/
+		if(ev.type == SDL_QUIT) {shouldquit = 0xFFff; /*Magic value for quit.*/}
+		else if(ev.type == SDL_MOUSEMOTION){
+			mousex = ev.motion.x;
+			mousey = ev.motion.y;
+			mousexrel = ev.motion.xrel;
+			mouseyrel = ev.motion.yrel;
+		} else if (ev.type == SDL_MOUSEBUTTONDOWN){
+			if(ev.button.button == SDL_BUTTON_LEFT){
+				onClick(0,1);
+			} else if(ev.button.button == SDL_BUTTON_RIGHT){
+				onClick(1,1);
+			}else if(ev.button.button == SDL_BUTTON_MIDDLE){
+				onClick(2,1);
+			}
+		} else if (ev.type == SDL_MOUSEBUTTONDOWN){
+			if(ev.button.button == SDL_BUTTON_LEFT){
+				onClick(0,0);
+			} else if(ev.button.button == SDL_BUTTON_RIGHT){
+				onClick(1,0);
+			}else if(ev.button.button == SDL_BUTTON_MIDDLE){
+				onClick(2,0);
+			}
+		}
 	}
 }
+
+/*
 static void mouse_update(){
 	unsigned a = SDL_GetMouseState(&mousex, &mousey);
 	mouse1 = ((a & SDL_BUTTON_LMASK) != 0);
 	mouse2 = ((a & SDL_BUTTON_RMASK) != 0);
 	mouse3 = ((a & SDL_BUTTON_MMASK) != 0);
 }
-
+*/
 #define MAX_SAMPLES 8192
 Mix_Chunk* samples[MAX_SAMPLES];
 unsigned long nsamples=0;
@@ -174,13 +204,8 @@ int main(int argc, char** argv){
 	gameInit();
 	while(!shouldquit){
 		pollevents();
-		/*
-			TODO: game logic
-		*/
 		gameStep();
-		{
-			SDL_GL_SwapWindow(sdl_win);
-		}
+		SDL_GL_SwapWindow(sdl_win);
 	}
 	gameClose();
 	Mix_CloseAudio();

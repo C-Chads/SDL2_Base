@@ -1,5 +1,6 @@
 
 #include "header_only_libs/chade_min.h"
+#include "header_only_libs/tobjparse.h"
 #include <stdio.h>
 #ifndef M_PI
 #define M_PI 3.14159265358979
@@ -11,7 +12,6 @@ unsigned sfx_tmr = 0;
 static unsigned short get_gamerbuttons(){
 	unsigned short retval = 0;
 	const unsigned char *state;
-	SDL_PumpEvents();
 	state = SDL_GetKeyboardState(NULL);
 	retval |= 0x1 * (state[SDL_SCANCODE_UP]!=0);
 	retval |= 0x2 * (state[SDL_SCANCODE_DOWN]!=0);
@@ -26,6 +26,13 @@ static unsigned short get_gamerbuttons(){
 	retval |= 0x400 * (state[SDL_SCANCODE_S]!=0);
 	retval |= 0x800 * (state[SDL_SCANCODE_D]!=0);
 	return retval;
+}
+
+void onClick(int btn, int state){
+	if(btn == 0 && state == 1)
+		printf("Click %d %d\r\n", mousex, mousey);
+	if(btn == 1 && state == 1)
+			printf("Right Click %d %d\r\n", mousex, mousey);
 }
 
 void gameInit(){
