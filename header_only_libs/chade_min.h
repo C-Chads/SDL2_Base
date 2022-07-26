@@ -1,6 +1,7 @@
 #ifndef CHADPHYS_H
 #define CHADPHYS_H
 #include "chadphys.h"
+#include <stdlib.h>
 
 typedef struct {
 	phys_body body; /*body*/
@@ -105,7 +106,8 @@ static inline void ChadWorld_RemoveEntityByPointer(ChadWorld* world,  ChadEntity
 
 			//recalculate n_ents
 			for(long i = 0; i < world->max_ents; i++)
-			if(world->ents[i]) world->n_ents = i + 1;
+				if(world->ents[i]) 
+					world->n_ents = i + 1;
 			return;
 		}
 }
