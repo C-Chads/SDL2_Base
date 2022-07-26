@@ -14,9 +14,11 @@ typedef struct {
 } phys_body;
 typedef struct{
 	vec3 g; //gravity
-	phys_body** bodies;
+	phys_body** bodies_static;
+	phys_body** bodies_dynamic;
 	f_ ms; //max speed
-	long nbodies; //number of bodies
+	long nbodies_static; //number of bodies
+	long nbodies_dyn; //number of bodies
 	char is_2d; //is this a 2-dimensional simulation?
 } phys_world;
 
@@ -133,9 +135,9 @@ static inline void resolveBodies(phys_body* a, phys_body* b){
 }
 
 static inline void stepPhysWorld(phys_world* world, const long collisioniter){
-	for(long i = 0; i < world->nbodies; i++)
-		if(world->bodies[i] && world->bodies[i]->mass > 0){
-			phys_body* body = world->bodies[i];
+	for(long i = 0; i < world->nbodies_dyn; i++)
+		if(world->bodies_dynamic[i] && world->bodies_dynamic[i]->mass > 0){
+			phys_body* body = world->bodies_dynamic[i];
 			vec3 bodypos = addv3(downv4(body->shape.c),body->v);
 			body->shape.c.d[0] = bodypos.d[0];
 			body->shape.c.d[1] = bodypos.d[1];
@@ -150,14 +152,23 @@ static inline void stepPhysWorld(phys_world* world, const long collisioniter){
 			if(world->is_2d) {body->shape.c.d[2] = 0;}
 		}
 	
-	//Resolve collisions (if any)
-	for(long iter = 0; iter < collisioniter; iter++)
-	for(long i = 0; i < (long)(world->nbodies-1); i++){
-		if(world->bodies[i]){
-			for(long j = i+1; j < (long)world->nbodies; j++)
-				if(world->bodies[j])
-					resolveBodies(world->bodies[i], world->bodies[j]);
-		}
+	//Resolve collisions between dynamic and static objects (if any)
+	for(long i = 0; i < (long)(world->nbodies_dyn); i++)
+	if(world->bodies_dynamic[i])
+	{
+		for(long j = 0; j < (long)world->nbodies_static; j++)
+			if(world->bodies_static[j])
+				resolveBodies(world->bodies_dynamic[i], world->bodies_static[j]);
 	}
+	//resolve collisions between dynamic objects
+	for(long iter = 0; iter < collisioniter; iter++)
+		for(long i = 0; i < (long)(world->nbodies_dyn-1); i++){
+			if(world->bodies_dynamic[i]){
+				for(long j = i+1; j < (long)world->nbodies_dyn; j++)
+					if(world->bodies_dynamic[j])
+						resolveBodies(world->bodies_dynamic[i], world->bodies_dynamic[j]);
+			}
+		}
+	//
 }
 #endif
