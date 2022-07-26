@@ -51,6 +51,7 @@ static inline long ChadWorld_AddEntity(ChadWorld* world, ChadEntity* ent){
 				{
 					found = 1;
 					world->world.bodies_dynamic[j] = &ent->body;
+					if(world->world.nbodies_dyn <= j) world->world.nbodies_dyn = j+1;
 					goto after_insertion;
 				}
 				exit(1);
@@ -61,6 +62,7 @@ static inline long ChadWorld_AddEntity(ChadWorld* world, ChadEntity* ent){
 				{
 					found = 1;
 					world->world.bodies_static[j] = &ent->body;
+					if(world->world.nbodies_static <= j) world->world.nbodies_static = j+1;
 					goto after_insertion;
 				}
 				exit(1);
@@ -69,7 +71,6 @@ static inline long ChadWorld_AddEntity(ChadWorld* world, ChadEntity* ent){
 			after_insertion:
 			if(world->n_ents <= i){
 				world->n_ents = i + 1;
-				world->world.nbodies = i+1;
 			}
 			return i;
 		}
@@ -100,7 +101,7 @@ static inline void ChadWorld_RemoveEntityByPointer(ChadWorld* world,  ChadEntity
 			//recalculate nbodies_dynamic
 			for(long i = 0; i < world->max_ents; i++)
 				if(world->world.bodies_dynamic[i])
-					world->world.nbodies_dynamic = i + 1;
+					world->world.nbodies_dyn = i + 1;
 
 			//recalculate n_ents
 			for(long i = 0; i < world->max_ents; i++)
@@ -123,7 +124,6 @@ static inline void renderChadWorld(ChadWorld* world){
 							);
 				glMultMatrixf(world->ents[i]->body.localt.d);
 				/*Render that shizzle!*/
-				if(
 				glCallList(
 					world->ents[i]->dl
 				);
