@@ -188,11 +188,11 @@ void store_sector(MHS_UINT where, sector* s);
 
 
 static void sector_write_byte(sector* sect, MHS_UINT loc, unsigned char byte){
-	loc %= (MHS_SECTOR_SIZE - 1);sect->data[loc] = byte;
+	loc %= (MHS_SECTOR_SIZE);sect->data[loc] = byte;
 }
 
 static unsigned char sector_read_byte(sector* sect, MHS_UINT loc){
-	loc %= (MHS_SECTOR_SIZE - 1);return sect->data[loc];
+	loc %= (MHS_SECTOR_SIZE);return sect->data[loc];
 }
 
 static void sector_write_MHS_UINT(sector* sect, MHS_UINT loc, MHS_UINT val){
@@ -346,15 +346,16 @@ static void namesan(char* name){
 }
 
 static void pathsan(char* path){
-		/*Remove repeated slashes. Thanks Applejar.*/
-
+	/*Remove repeated slashes. Thanks Applejar.*/
 	{char* a; char* b;
 		a = path; b = path;
 		for (;;) {
+			/*While the current and next characters of src are slashes, iterate the src*/
 		    while (a[0] == '/' && a[1] == '/') a++;
+		    /*Copy character from src backwards*/
 		    *b = *a;
-		    if(*a == '\0') break;
-		    a++; b++;
+		    if(*a == '\0') break; /*if we just copied the null terminator, break*/
+		    a++; b++; /*iterate src and dest*/
 		}
 	}
 	while(
@@ -407,8 +408,6 @@ static sector get_rootnode(){ return load_sector(0); }
 */
 
 static sector s_allocator;
-
-
 static void get_allocation_bitmap_info(
 	MHS_UINT* dest_size,
 	MHS_UINT* dest_where
@@ -436,12 +435,10 @@ static void get_allocation_bitmap_info(
 
 	THIS MUST BE ENTERED UNDER LOCK!!!
 */
-
-
 static MHS_UINT bitmap_find_and_alloc_single_node(
 	/*Information attained from a previous call to get_allocation_bitmap_info*/
 	const MHS_UINT bitmap_size,
-	MHS_UINT bitmap_where
+	const MHS_UINT bitmap_where
 ){
  	MHS_UINT i = 1; /*We do **NOT** start at zero.*/
  	MHS_UINT bitmap_offset = 0; /*Represents the currently loaded sector.*/
@@ -628,8 +625,10 @@ static void bitmap_dealloc_nodes(
 
 
 
-
-static MHS_UINT bitmap_find_and_alloc_multiple_nodes(
+/*
+	Find and allocate multiple sectors, used for file data.
+*/
+static MHS_UINT bitmap_find_alloc_sectors(
 	/*Information attained from a previous call to get_allocation_bitmap_info*/
 	const MHS_UINT bitmap_size,
 	const MHS_UINT bitmap_where,
@@ -639,15 +638,7 @@ static MHS_UINT bitmap_find_and_alloc_multiple_nodes(
  	MHS_UINT i = bitmap_where + ((bitmap_size + MHS_SECTOR_SIZE - 1) / MHS_SECTOR_SIZE); /*Begin searching the disk beyond the bitmap.*/
  	MHS_UINT run = 0;
  	MHS_UINT bitmap_offset = i / (8 * MHS_SECTOR_SIZE); /*What sector of the bitmap are we searching?*/
-#ifdef MHS_DEBUG
-	MHS_LOG("bitmap_find_and_alloc_multiple_nodes: attempting to find %lu nodes starting at %lu\r\n", 
-		(unsigned long)needed, (unsigned long)i
-	);
-#endif
- 	if(needed == 0) return 0;
-#ifdef MHS_DEBUG
- 	if(needed == 1) MHS_LOG("DEBUG: WARNING: size 1???\r\n");
-#endif
+
  	s_allocator = load_sector(bitmap_where + bitmap_offset);
 	for(
 		i = bitmap_where + ((bitmap_size + MHS_SECTOR_SIZE - 1) / MHS_SECTOR_SIZE);
@@ -657,7 +648,7 @@ static MHS_UINT bitmap_find_and_alloc_multiple_nodes(
 		unsigned char p; /*before masking.*/
 		unsigned char q; /*after masking*/
 		/*
-			Did we just cross into the next sector?
+			Did we just cross into the next sector? (bitmap_offset not the same as when it was last calculated?)
 			If so, load the next sector!
 		*/
 		if(bitmap_offset != i / (8 * MHS_SECTOR_SIZE)){
@@ -670,13 +661,6 @@ static MHS_UINT bitmap_find_and_alloc_multiple_nodes(
 			run++;
 			if(run >= needed) {
 				MHS_UINT start = i - (run-1);
-#ifdef MHS_DEBUG
-				MHS_LOG("<FOUND SUITABLE LOCATION @ %lu OF LENGTH %lu>\r\n", (unsigned long)i, (unsigned long)run); 
-#endif
-				/*
-					TODO: Inefficiency, the disk is over-read, and we really should
-					allocate nodes from the end backwards, to stay (potentially, on a real hdd) on the same track.
-				*/
 				bitmap_alloc_nodes(
 					bitmap_size,
 					bitmap_where, 
@@ -1728,7 +1712,7 @@ static char file_realloc(
 	lock_modify_bit();
 	/*Step 1: allocate new space.*/
 	new_location = 
-		bitmap_find_and_alloc_multiple_nodes(
+		bitmap_find_alloc_sectors(
 			bitmap_size, 
 			bitmap_where,
 			(newsize + MHS_SECTOR_SIZE - 1) / MHS_SECTOR_SIZE
