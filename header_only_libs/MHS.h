@@ -1131,9 +1131,6 @@ static void append_node_right(MHS_UINT sibling, MHS_UINT newbie){
 */
 static void append_node_to_dir(MHS_UINT directory_node_ptr, MHS_UINT new_node){
 	if(directory_node_ptr == 0){ /*SPECIAL CASE- trying to create a new file in root.*/
-#ifdef MHS_DEBUG
-		MHS_LOG("W: append_node_to_dir: Special case- root node.\r\n");
-#endif
 		append_node_right(directory_node_ptr, new_node);
 		return;
 	}
@@ -1168,15 +1165,10 @@ static char node_remove_right(MHS_UINT sibling){
 	MHS_UINT deletemeid;
 	s_appender = load_sector(sibling);
 	deletemeid = sector_fetch_rptr(&s_appender);
-	if(deletemeid == 0) {
-#ifdef MHS_DEBUG
-	MHS_LOG("node_remove_right: Null rptr.\r\n");
-#endif
-	return 0;}  /*Don't bother!*/
+	if(deletemeid == 0) {return 0;}  /*Don't have siblings?*/
 	s_appender2 = load_sector(deletemeid);
 	/*
 		Check if sdeleteme is a directory, with contents.
-
 		A directory with contents cannot be deleted. You must delete all the files in it first.
 	*/
 	if(
@@ -1184,9 +1176,6 @@ static char node_remove_right(MHS_UINT sibling){
 		&&	sector_fetch_dptr(&s_appender2)
 	){
 		{
-#ifdef MHS_DEBUG
-			MHS_LOG("node_remove_right: Cannot remove directory with contents.\r\n");
-#endif
 			return 0;
 		} /*Failure! Cannot delete node- it is a directory with contents.*/
 	}
@@ -1206,18 +1195,9 @@ static char node_remove_right(MHS_UINT sibling){
 static char node_remove_down(MHS_UINT parent){
 	MHS_UINT deletemeid;
 	s_appender = load_sector(parent);
-	if(!sector_is_dir(&s_appender)) {
-#ifdef MHS_DEBUG
-	MHS_LOG("node_remove_down: Node is not a directory.\r\n");
-#endif
-	return 0;} /*Not a directory... can't do it, sorry.*/
+	if(!sector_is_dir(&s_appender)) {return 0;} /*Not a directory... can't do it, sorry.*/
 	deletemeid = sector_fetch_dptr(&s_appender);
-	if(deletemeid == 0) {
-#ifdef MHS_DEBUG
-		MHS_LOG("node_remove_down: Node has null dptr.\r\n");
-#endif
-		return 0;
-	} /*We cannot remove a node that does not exist.*/
+	if(deletemeid == 0) {return 0;} /*We cannot remove a node that does not exist.*/
 	s_appender2 = load_sector(deletemeid);
 	/*we need to assign the parent's new dptr.*/
 	sector_write_dptr(
@@ -1249,13 +1229,13 @@ static char node_remove_from_dir(
 	for(;i != 0;){
 		if(i == node_removeme){
 			/*REMOVE THIS NODE! it is our target.*/
-			if(i_prev == 0 && node_dir == 0){
+			if(i_prev == 0 && node_dir == 0){ /*special case- removing the first entry in the root directory!*/
 				/*Remove from rptr of root node.*/
 				s_appender = load_sector(i);
 				sector_write_rptr(&s_appender2, sector_fetch_rptr(&s_appender));
 				store_sector(node_dir, &s_appender2);
 			} else if(i_prev == 0){
-				/*Reach to our parent- we are the first child.*/
+				/*Reach to our parent- we are the first child. This is not the root directory.*/
 				s_appender = load_sector(i);
 				sector_write_dptr(&s_appender2, sector_fetch_rptr(&s_appender));
 				store_sector(node_dir, &s_appender2);
@@ -1285,6 +1265,17 @@ static char node_remove_from_dir(
 
 
 /*
+	API CALLS
+
+	all these are expected to be used by the implementer,
+	plus load_sector and store_sector
+	(for optimized file r/w)
+
+	Due to the way the library is structured, it is unsafe to have the following functions call each other.
+*/
+
+
+/*
 	API call for creating an empty file or directory.
 */
 static char pathbuf[MHS_MAX_PATH_LENGTH];
@@ -1303,89 +1294,41 @@ static char file_createempty(
 	MHS_UINT bitmap_where;
 	MHS_UINT alloced_node = 0;
 	
-	if(strlen(path) == 0) {
-#ifdef MHS_DEBUG
-		MHS_LOG("file_createempty: path empty.\r\n");
-#endif
-		return 0;
-	} /*Cannot create a directory with no name!*/
-	if(strlen(path) >(MHS_MAX_PATH_LENGTH - 1)) {
-#ifdef MHS_DEBUG
-		MHS_LOG("file_createempty: path too long.\r\n");
-#endif
-		return 0;
-	} /*Path is too long.*/
-	if(strlen(fname) == 0) {
-#ifdef MHS_DEBUG
-		MHS_LOG("file_createempty: fname is empty.\r\n");
-#endif
-		return 0;
-	}
-	if(strlen(fname) > (MHS_SECTOR_SIZE - (MHS_NATTRIBS * sizeof(MHS_UINT) + 3)) ) {
-#ifdef MHS_DEBUG
-		MHS_LOG("file_createempty: fname too long.\r\n");
-#endif
-		return 0;
-	} /*fname is too large. Note the 3 instead of two- it is intentional.*/
+	if(strlen(path) == 0) {return 0;} /*Cannot create a directory with no name!*/
+	if(strlen(path) >(MHS_MAX_PATH_LENGTH - 1)) {return 0;} /*Path is too long.*/
+	if(strlen(fname) == 0) {return 0;}
+	if(strlen(fname) > (MHS_SECTOR_SIZE - (MHS_NATTRIBS * sizeof(MHS_UINT) + 3)) ) {return 0;} /*fname is too large. Note the 3 instead of two- it is intentional.*/
 	
 	MHS_strcpy(pathbuf, (char*)path);
 	pathsan(pathbuf);
 	MHS_strcpy(namebuf, (char*)fname);
 	namesan(namebuf);
 	if(strlen(namebuf) == 0) {
-#ifdef MHS_DEBUG
-		MHS_LOG("file_createempty: no name.\r\n");
-#endif
 		return 0;
 	} /*Cannot create a file with no name!*/
 
 	get_allocation_bitmap_info(&bitmap_size, &bitmap_where);
 	if(strcmp(path, "/") != 0)
 	{
-#ifdef MHS_DEBUG
-		MHS_LOG("DEBUG: file_createempty: about to resolve path %s\r\n", pathbuf);
-#endif
 		directorynode = resolve_path(pathbuf);
 		if(directorynode == 0) {
-#ifdef MHS_DEBUG
-			MHS_LOG("file_createempty: directory node failed to resolve.\r\n");
-#endif
 			return 0;
 		}
 		/*We need to check if it really is a directory!*/
 		s_worker = load_sector(directorynode);
-		if(!sector_is_dir(&s_worker)) {
-#ifdef MHS_DEBUG
-			MHS_LOG("file_createempty: directory node isn't a directory.\r\n");
-#endif
-			return 0;
-		} /*Not a directory! You can't put files in it!*/
+		if(!sector_is_dir(&s_worker)) {return 0;} /*Not a directory! You can't put files in it!*/
 	} else {
 		directorynode = 0;
 	}
-#ifdef MHS_DEBUG
-	MHS_LOG("file_createempty: about to search if exists\r\n");
-#endif
 	/*Check if the file already exists.*/
 	if(node_exists_in_directory(directorynode, namebuf)) {
-#ifdef MHS_DEBUG
-		MHS_LOG("file_createempty: file exists in directory.\r\n");
-#endif
 		return 0;
 	}
-#ifdef MHS_DEBUG
-	MHS_LOG("file_createempty: about to lock\r\n");
-#endif
 	/*Step 1: lock*/
 	lock_modify_bit();
 		/*Step 2: allocate the node.*/
 		alloced_node = bitmap_find_and_alloc_single_node(bitmap_size,bitmap_where);
-		if(alloced_node == 0) {
-#ifdef MHS_DEBUG
-			MHS_LOG("file_createempty: could not allocate space.\r\n");
-#endif
-			goto fail;
-		} /*Failed allocation.*/
+		if(alloced_node == 0) {goto fail;} /*Failed allocation.*/
 		/*Write the permission bits and whatnot in.*/
 		s_worker = load_sector(alloced_node);
 			sector_write_fname(&s_worker, namebuf);
@@ -1394,13 +1337,11 @@ static char file_createempty(
 			sector_write_perm_bits(&s_worker, permbits);
 			sector_write_ownerid(&s_worker, owner);
 		store_sector(alloced_node, &s_worker);
-		/*Step 3: append node to directory! (TODO: REDUNDANT READ AND WRITE HERE...)*/
+		/*Step 3: append node to directory!*/
 		append_node_to_dir(directorynode, alloced_node); /*This actually has a special case for the root node.*/
 	/*Step 4: unlock*/
 	unlock_modify_bit();
-	
 	return 1;
-
 	fail:
 		unlock_modify_bit();
 		return 0;
@@ -1411,46 +1352,22 @@ static char file_createempty(
 
 	(API CALL)
 */
-
 static char file_read_sector(
 	const char* path,
 	MHS_UINT offset, /*How far into the file? In bytes.*/
 	sector* dest
 ){
 	MHS_UINT res;
-
 	if(strlen(path) == 0) {
-#ifdef MHS_DEBUG
-		MHS_LOG("file_read_sector: path empty.\r\n");
-#endif
 		return 0;
 	} /*Cannot create a directory with no name!*/
-	if(strlen(path) > (MHS_MAX_PATH_LENGTH - 1)) {
-#ifdef MHS_DEBUG
-	MHS_LOG("file_read_sector: path too long.\r\n");
-#endif
-	return 0;} /*Path is too long.*/
+	if(strlen(path) > (MHS_MAX_PATH_LENGTH - 1)) {return 0;} /*Path is too long.*/
 	MHS_strcpy(pathbuf, path);
-
 	res = resolve_path(pathbuf);
-	if(res == 0) {
-#ifdef MHS_DEBUG
-	MHS_LOG("file_read_sector: path fails to resolve.\r\n");
-#endif
-	return 0;}
-
+	if(res == 0) {return 0;}
 	s_worker2 = load_sector(res);
-
-	if(sector_is_dir(&s_worker2)) {
-#ifdef MHS_DEBUG
-	MHS_LOG("file_read_sector: path points to directory.\r\n");
-#endif
-	return 0;}/*Cannot read from a directory.*/
-	if(sector_fetch_dptr(&s_worker2) == 0) {
-#ifdef MHS_DEBUG
-	MHS_LOG("file_read_sector: file has NULL dptr.\r\n");
-#endif
-	return 0;}
+	if(sector_is_dir(&s_worker2)) {return 0;}/*Cannot read from a directory.*/
+	if(sector_fetch_dptr(&s_worker2) == 0) {return 0;} /*File does not have a dptr!*/
 	if(sector_fetch_size(&s_worker2) <= offset) {return 0;} /*Too big!*/
 	
 	*dest = load_sector((offset / MHS_SECTOR_SIZE) + sector_fetch_dptr(&s_worker2));
@@ -1467,30 +1384,14 @@ static char file_read_node(
 	sector* dest
 ){
 	MHS_UINT res;
-
-	if(strlen(path) == 0) {
-#ifdef MHS_DEBUG
-		MHS_LOG("file_read_node: path empty.\r\n");
-#endif
-		return 0;
-	} /*Cannot create a directory with no name!*/
-	if(strlen(path) > (MHS_MAX_PATH_LENGTH - 1)) {
-#ifdef MHS_DEBUG
-	MHS_LOG("file_read_node: path too long.\r\n");
-#endif
-		return 0;
-	} /*Path is too long.*/
+	if(strlen(path) == 0) {return 0;} /*Cannot create a directory with no name!*/
+	if(strlen(path) > (MHS_MAX_PATH_LENGTH - 1)) {return 0;} /*Path is too long.*/
 	MHS_strcpy(pathbuf, path);
 	pathsan(pathbuf);
 	if(strcmp(pathbuf, "/") != 0)
 	{
 		res = resolve_path(pathbuf);
-		if(res == 0) {
-#ifdef MHS_DEBUG
-			MHS_LOG("file_read_node: path fails to resolve.\r\n");
-#endif
-			return 0;
-		}
+		if(res == 0) {return 0;	}
 	} else {
 		res = 0;
 	}
@@ -1510,57 +1411,15 @@ static char file_write_sector(
 	sector* newcontents
 ){
 	MHS_UINT res;
-
-	if(strlen(path) == 0) {
-#ifdef MHS_DEBUG
-		MHS_LOG("file_write_sector: path empty.\r\n");
-#endif
-		return 0;
-	} /*Cannot create a directory with no name!*/
-	if(strlen(path) > (MHS_MAX_PATH_LENGTH - 1)) {
-#ifdef MHS_DEBUG
-		MHS_LOG("file_write_sector: path too long.\r\n");
-#endif
-		return 0;
-	} /*Path is too long.*/
+	if(strlen(path) == 0) {return 0;} /*Cannot create a directory with no name!*/
+	if(strlen(path) > (MHS_MAX_PATH_LENGTH - 1)) {return 0;} /*Path is too long.*/
 	MHS_strcpy(pathbuf, path);
-
 	res = resolve_path(pathbuf);
-	if(res == 0) {
-#ifdef MHS_DEBUG
-		MHS_LOG("file_write_sector: path fails to resolve.\r\n");
-#endif
-		return 0;
-	}
-
+	if(res == 0) {return 0;}
 	s_worker2 = load_sector(res);
-
-	if(sector_is_dir(&s_worker2)) {
-#ifdef MHS_DEBUG
-		MHS_LOG("file_write_sector: path points to directory.\r\n");
-#endif
-		return 0;
-	}/*Cannot read from a directory.*/
-	if(sector_fetch_dptr(&s_worker2) == 0) {
-#ifdef MHS_DEBUG
-		MHS_LOG("file_write_sector: file has NULL dptr.\r\n");
-#endif
-		return 0;
-	}
-	if(sector_fetch_size(&s_worker2) <= offset) {
-#ifdef MHS_DEBUG
-		MHS_LOG("file_write_sector: file is too small.\r\n");
-#endif
-		return 0;
-	} /*Too big!*/
-
-#ifdef MHS_DEBUG
-	MHS_LOG(
-		"DEBUG: offset calculation is %lu, was %lu\r\n", 
-		(unsigned long)(offset / MHS_SECTOR_SIZE), 
-		(unsigned long)offset
-	);
-#endif
+	if(sector_is_dir(&s_worker2)) {return 0;}/*Cannot read from a directory.*/
+	if(sector_fetch_dptr(&s_worker2) == 0) {return 0;} /*File does not have a dptr!*/
+	if(sector_fetch_size(&s_worker2) <= offset) {return 0;}
 	store_sector(
 		(offset / MHS_SECTOR_SIZE) + sector_fetch_dptr(&s_worker2), newcontents
 	); /*Perform storage.*/
@@ -1570,7 +1429,6 @@ static char file_write_sector(
 
 /*
 	Get the Nth directory entry in a directory.
-
 	(API CALL)
 */
 
@@ -1582,17 +1440,9 @@ static char file_get_dir_entry_by_index(
 	MHS_UINT res;
 	MHS_UINT i;
 	if(strlen(path) == 0) {
-#ifdef MHS_DEBUG
-		MHS_LOG("file_get_dir_entry_by_index: path empty.\r\n");
-#endif
 		return 0;
 	} /*Cannot create a directory with no name!*/
-	if(strlen(path) > (MHS_MAX_PATH_LENGTH - 1)) {
-#ifdef MHS_DEBUG
-		MHS_LOG("file_get_dir_entry_by_index: path too long.\r\n");
-#endif
-		return 0;
-	} /*Path is too long.*/
+	if(strlen(path) > (MHS_MAX_PATH_LENGTH - 1)) {return 0;} /*Path is too long.*/
 	MHS_strcpy(pathbuf, path);
 	pathsan(pathbuf);
 	if(strcmp("/", pathbuf) == 0){
@@ -1620,6 +1470,7 @@ static char file_get_dir_entry_by_index(
 	Re-Allocate space for a file.
 
 	(API call)
+	uses s_worker
 */
 static char file_realloc(
 	const char* path,
@@ -1634,33 +1485,17 @@ static char file_realloc(
 	char need_to_copy = 0;
 
 	
-	if(strlen(path) == 0) {
-#ifdef MHS_DEBUG
-		MHS_LOG("file_realloc: path_to_directory is empty.\r\n");
-#endif
-		return 0;
-	} /*Cannot create a directory with no name!*/
-	if(strlen(path) > (MHS_MAX_PATH_LENGTH - 1)) {
-#ifdef MHS_DEBUG
-		MHS_LOG("file_realloc: path_to_directory is too long..\r\n");
-#endif
-		return 0;
-	} /*Path is too long.*/
+	if(strlen(path) == 0) {return 0;} /*Cannot realloc a file with no name!*/
+	if(strlen(path) > (MHS_MAX_PATH_LENGTH - 1)) {return 0;} /*Path is too long.*/
 	MHS_strcpy(pathbuf, path);
 	fsnode = resolve_path(pathbuf); /*pathbuf is ruined after this.*/
-	if(fsnode == 0) {
-#ifdef MHS_DEBUG
-		MHS_LOG("file_realloc: file failed to resolve.\r\n");
-#endif
-		return 0;
-	} /*FAILURE! Does not exist.*/
+	if(fsnode == 0) {return 0;} /*FAILURE! Does not exist.*/
 	s_worker = load_sector(fsnode);
 	if(sector_is_dir(&s_worker)) return 0; /*FAILURE! it's a directory, not a file!*/
 	if(
 		sector_fetch_dptr(&s_worker) && /*Not a NULL file...*/
 		(sector_fetch_size(&s_worker) == newsize)
-	) return 1; /*Technically, it's already that size.*/
-
+	) return 1; /*it's already the correct size!*/
 	/*If the new size is zero... We simply free()*/
 	if(newsize == 0)
 	{
@@ -1676,6 +1511,7 @@ static char file_realloc(
 					sector_fetch_dptr(&s_worker),
 					nsectors_to_dealloc
 				);
+				/*Notice! A file without a dptr now exists.*/
 				sector_write_size(&s_worker, 0);
 				sector_write_dptr(&s_worker, 0);
 				store_sector(fsnode, &s_worker);
@@ -1686,18 +1522,19 @@ static char file_realloc(
 			store_sector(fsnode, &s_worker);
 		}
 	}
-	/*If the new size would require exactly as many sectors as the old size... do nothing!
+	/*If the new size would require exactly as many sectors as the old size, and we already have the
+	allocation, then we just need to set the new size. No bitmap allocation stuff needs to happen.
 	*/
 	if(sector_fetch_dptr(&s_worker))
-	if( 
-		((newsize+MHS_SECTOR_SIZE-1) / MHS_SECTOR_SIZE)
-		== 
-		((sector_fetch_size(&s_worker)+MHS_SECTOR_SIZE-1) / MHS_SECTOR_SIZE)
-	){
-		sector_write_size(&s_worker, newsize);
-		store_sector(fsnode, &s_worker); /*The write is atomic. No need to lock and unlock.*/
-		return 1;
-	}
+		if(
+			((newsize+MHS_SECTOR_SIZE-1) / MHS_SECTOR_SIZE)
+			== 
+			((sector_fetch_size(&s_worker)+MHS_SECTOR_SIZE-1) / MHS_SECTOR_SIZE)
+		){
+			sector_write_size(&s_worker, newsize);
+			store_sector(fsnode, &s_worker); /*The write is atomic. No need to lock and unlock.*/
+			return 1;
+		}
 
 	old_size = sector_fetch_size(&s_worker);
 
@@ -1709,6 +1546,8 @@ static char file_realloc(
 			size_to_copy = newsize;
 	}
 	get_allocation_bitmap_info(&bitmap_size, &bitmap_where);
+
+
 	lock_modify_bit();
 	/*Step 1: allocate new space.*/
 	new_location = 
@@ -1718,44 +1557,28 @@ static char file_realloc(
 			(newsize + MHS_SECTOR_SIZE - 1) / MHS_SECTOR_SIZE
 		);
 	if(new_location == 0) {
-#ifdef MHS_DEBUG
-		MHS_LOG("file_realloc: failed to allocate space for file.\r\n");
-#endif
 		goto fail;
 	}
 	if(new_location < bitmap_where){
-#ifdef MHS_DEBUG
-		MHS_LOG("file_realloc: internal error, space allocated in invalid region: %lu.\r\n", (unsigned long)new_location);
-#endif
 		goto fail;
 	}
 	/*Step 2: Copy over the data to the new location.*/
 	
 	if(need_to_copy)
 		{MHS_UINT i = 0;
-#ifdef MHS_DEBUG
-			MHS_LOG("DEBUG: <FILE REALLOC> Copying data...\r\n");
-#endif
 			for(; i < ( (size_to_copy + MHS_SECTOR_SIZE - 1) / MHS_SECTOR_SIZE ); i++){
 				s_walker = load_sector(sector_fetch_dptr(&s_worker) + i);
 				store_sector(new_location + i, &s_walker);
 			}
-#ifdef MHS_DEBUG
-			MHS_LOG("DEBUG: <FILE REALLOC> Done Copying data...\r\n");
-#endif
 		}
 	/*Step 3: Release.*/
-	
+
+	/*Only de-allocate if s_worker had stuff.*/
 	if(sector_fetch_dptr(&s_worker))
 	{
 		MHS_UINT nsectors_to_dealloc;
 			nsectors_to_dealloc = (sector_fetch_size(&s_worker) + MHS_SECTOR_SIZE - 1) / MHS_SECTOR_SIZE;
-			if(nsectors_to_dealloc == 0) {
-#ifdef MHS_DEBUG
-				MHS_LOG("W: file_realloc: zero size file reached release.\r\n");
-#endif
-				nsectors_to_dealloc++;
-			} /*size was 0.*/
+			if(nsectors_to_dealloc == 0) {nsectors_to_dealloc++;} /*size was 0.*/
 			bitmap_dealloc_nodes(
 				bitmap_size,
 				bitmap_where,
@@ -1773,11 +1596,8 @@ static char file_realloc(
 		unlock_modify_bit();
 		return 0;
 }
-
-
 static sector s_deleter;
 static sector s_deleter2;
-
 /*
 	Delete a file.
 	API Call.
@@ -1786,19 +1606,13 @@ static char file_delete(
 	const char* path_to_directory,
 	const char* fname
 ){
-	MHS_UINT node = 0;
-	MHS_UINT node_parentdirectory = 0;
+	MHS_UINT node = 0; /*the actual file node*/
+	MHS_UINT node_parentdirectory = 0; /*the parent directory's node*/
 	MHS_UINT bitmap_size, bitmap_where;
 	if(strlen(path_to_directory) == 0) {
-#ifdef MHS_DEBUG
-		MHS_LOG("file_delete: path_to_directory is empty.\r\n");
-#endif
 		return 0;
 	} /*no name!*/
 	if(strlen(path_to_directory) > (MHS_MAX_PATH_LENGTH - 1)) {
-#ifdef MHS_DEBUG
-		MHS_LOG("file_delete: path_to_directory is too long.\r\n");
-#endif
 		return 0;
 	} /*Path is too long.*/
 	if(strlen(fname) > (MHS_SECTOR_SIZE - (MHS_NATTRIBS * sizeof(MHS_UINT) + 3)) ) return 0; /*fname is too large. Note the 3 instead of two- it is intentional.*/
@@ -1808,12 +1622,7 @@ static char file_delete(
 		node_parentdirectory = 0;
 	} else {
 		node_parentdirectory = resolve_path(pathbuf);
-		if(node_parentdirectory == 0) { 
-#ifdef MHS_DEBUG
-			MHS_LOG("<ERROR> file_delete: Cannot resolve parent directory.\r\n");
-#endif
-			return 0;
-		}
+		if(node_parentdirectory == 0) { return 0;}
 	}
 	/*Pathbuf is now invalid.*/
 	MHS_strcpy(pathbuf, path_to_directory);		pathsan(pathbuf);
@@ -1821,13 +1630,10 @@ static char file_delete(
 	/*We now have the parent directory! We must fetch the file from the directory.*/
 	node = get_node_in_directory(node_parentdirectory, namebuf);
 	if(node_parentdirectory != 0) s_deleter = load_sector(node_parentdirectory);
+	node = get_node_in_directory(node_parentdirectory, namebuf);
+	s_deleter2 = load_sector(node);
 
-	node = get_node_in_directory(
-		node_parentdirectory, 
-		namebuf);
-		s_deleter2 = load_sector(node);
-
-	/*For non-directory nodes, delete their contents.*/
+	/*For non-directory nodes, delete their contents first.*/
 	if(
 		(!sector_is_dir(&s_deleter2)) &&
 		sector_fetch_dptr(&s_deleter2)
@@ -1835,27 +1641,16 @@ static char file_delete(
 		MHS_strcpy(pathbuf, path_to_directory);		pathsan(pathbuf);
 		MHS_strcpy(namebuf, fname); 					namesan(namebuf);
 		if(strlen(pathbuf) + strlen(namebuf) > (MHS_MAX_PATH_LENGTH - 2)) {
-#ifdef MHS_DEBUG
-			MHS_LOG("<ERROR> file_delete: pathbuf + namebuf too large.\r\n");
-#endif
 			return 0;
 		}
 		strcat(pathbuf, "/");
 		strcat(pathbuf, namebuf);
 		char a = file_realloc(pathbuf, 0);
-		if(a == 0) {
-#ifdef MHS_DEBUG
-			MHS_LOG("<ERROR> file_delete failed while deleting file contents!\r\n");  
-#endif
-			return 0;
-		} /*Failure! Couldn't reallocate.*/
+		if(a == 0) {return 0;} /*Failure! Couldn't reallocate.*/
 		s_deleter2 = load_sector(node);
 	}
-	/*If it has contents now, it cannot be freed.*/
+	/*If it has contents now, it cannot be freed. This obviously includes directories with contents.*/
 	if( sector_fetch_dptr(&s_deleter2) ) {
-#ifdef MHS_DEBUG
-		MHS_LOG("<ERROR> file_delete: file still has contents.\r\n");
-#endif
 		return 0;
 	}
 
@@ -1870,7 +1665,7 @@ static char file_delete(
 	bitmap_dealloc_nodes(
 		bitmap_size,
 		bitmap_where,
-		node,
+		node,			/*The node we are deallocating*/
 		1
 	);
 	unlock_modify_bit();
