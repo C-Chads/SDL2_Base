@@ -911,7 +911,7 @@ static MHS_UINT walk_nodes_right(
 		start_node_id = sector_fetch_rptr(&s_walker);
 	}
 	s_walker = load_sector(start_node_id);
-	
+	if(start_node_id == 0) {return 0;} /*FS is empty. Failed!*/
 	while(1){
 #ifdef MHS_DEBUG
 		MHS_LOG("<Walking right for %s, id = %lu>\r\n", target_name, (unsigned long)start_node_id);
@@ -1005,17 +1005,10 @@ static MHS_UINT resolve_path(
 	
 	if(strlen(path) == 0) {
 #ifdef MHS_DEBUG
-		MHS_LOG("resolve_path: Empty path (1).\r\n");
-#endif
-		return 0;
-	} /*Cannot create a directory with no name!*/
-	
-	if(strlen(path) == 0) {
-#ifdef MHS_DEBUG
 		MHS_LOG("resolve_path: Empty path (2).\r\n");
 #endif
 		return 0;
-	} /*Repeat the check.*/
+	} 
 	fname = path;
 	{
 		long loc;
