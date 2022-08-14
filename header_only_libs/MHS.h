@@ -1655,10 +1655,7 @@ static char file_delete(
 	if( sector_fetch_dptr(&s_deleter2) ) {
 		return 0;
 	}
-
-	/**/
 	get_allocation_bitmap_info(&bitmap_size, &bitmap_where);
-	
 	lock_modify_bit();
 	node_remove_from_dir(
 		node_parentdirectory,
