@@ -362,9 +362,10 @@ static void pathsan(char* path){
 			strlen(path) 
 		&& 	path[strlen(path)-1] == '/'
 	) {
-		if(strcmp(path, "/") == 0) return; /*At every step!*/
+		if(strcmp(path, "/") == 0) return; /*At every step! Cannot allow path to become empty.*/
 		path[strlen(path)-1] = '\0'; 
 	}
+	if(strlen(path) == 0) MHS_strcpy(path, "/");
 }
 
 
@@ -1031,6 +1032,12 @@ static MHS_UINT resolve_path(
 		return 0;
 	}  /*Cannot create a directory with no name!*/
 	namesan(fname); /*Sanitize the name.*/
+	if(strlen(fname) == 0) {
+#ifdef MHS_DEBUG
+		MHS_LOG("resolve_path: Empty fname (1).\r\n");
+#endif
+		return 0;
+	}  /*Cannot create a directory with no name!*/
 	/*Walk the tree. We use the path to do this.*/
 	{
 		MHS_UINT current_node_searching = 0;
@@ -1089,6 +1096,9 @@ static MHS_UINT resolve_path(
 				return candidate_node;
 			}
 		}
+
+
+
 	}
 }
 
@@ -1294,11 +1304,10 @@ static char file_createempty(
 	
 	MHS_strcpy(pathbuf, (char*)path);
 	pathsan(pathbuf);
+	if(strlen(pathbuf) == 0) {return 0;} /*Improbable but not impossible*/
 	MHS_strcpy(namebuf, (char*)fname);
 	namesan(namebuf);
-	if(strlen(namebuf) == 0) {
-		return 0;
-	} /*Cannot create a file with no name!*/
+	if(strlen(namebuf) == 0) {return 0;} /*Cannot create a file with no name!*/
 
 	get_allocation_bitmap_info(&bitmap_size, &bitmap_where);
 	if(strcmp(path, "/") != 0)
