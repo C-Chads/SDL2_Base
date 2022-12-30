@@ -176,7 +176,7 @@ void noCaptMouse();
 void setFullscreen(int mode);
 void cRend();
 void cSurf(int w, int h);
-void clear(uchar a);
+void clear(uchar, uchar, uchar);
 void uTx();
 
 
@@ -270,7 +270,7 @@ void lspr(sprite* s, const char* filename){
 	int sw = 0, sh = 0, sc = 0; //sc goes unused.
 	uchar* source_data = stbi_load(filename, &sw, &sh, &sc, 4);
 	if(!source_data) {
-		printf("\nError loading font %s\n",filename);
+		printf("\nError loading sprite %s\n",filename);
 		return;
 	}
 	s->d = source_data;
@@ -298,7 +298,7 @@ void initFont(const char* filename){
 	}
 	//quickly move the red channel to the green,blue, and alpha channels.
 	
-	for(int i = 0; i < sw * sh; i++){ //NOTE: if we have to change R_ shit, don't touch this!!!
+	for(int i = 0; i < sw * sh; i++){ //NOTE: if we have to change R_ stuff, don't touch this!!!
 		uchar r = source_data[i * 4];
 		source_data[i * 4] = r?255:0;
 		source_data[i * 4 + 1] = r?255:0;
@@ -908,7 +908,8 @@ void drawText(int xleft, int ytop, const char* text, uchar r, uchar g, uchar b){
 			{ytop+=charsprites['!'].h;//HEHE
 			x = xleft;
 		} else { 
-			rensptint(charsprites + ((uchar*)text)[i],x,ytop,r,g,b);
+			if((charsprites + ((uchar*)text)[i])->d)
+				rensptint(charsprites + ((uchar*)text)[i],x,ytop,r,g,b);
 			x+=charsprites['!'].w;
 		}
 	}
@@ -957,7 +958,7 @@ void blitback(sprite* s, uint x, uint y){
 		*(uint*)dat = *(uint*)src;
 	}
 	//for the remaining rows...
-	for(;j < (uint)surf->h;j++){
+	for(j=0;j < (uint)surf->h;j++){
 		int sj = j%s->h;
 		char* dat = (char*)surf->pixels + (j*surf->w)*4;
 		char* src = (char*)surf->pixels + (sj*surf->w)*4;
@@ -1080,9 +1081,12 @@ void cSurf(int w, int h){
     dbuff = malloc(sizeof(float) * w * h);
     if(tex)SDL_DestroyTexture(tex); tex = NULL;
 }
-void clear(uchar a){
+void clear(uchar r, uchar g, uchar b){
 	uint* dat = surf->pixels;
-	uint col = 0; ((uchar*)&col)[A_] = a;
+	uint col = 0; 
+	((uchar*)&col)[R_] = r;
+	((uchar*)&col)[G_] = g;
+	((uchar*)&col)[B_] = b;
 	for(int i = 0; i < surf->w; i++)
 		dat[i] = col;
 	for(int i = 1; i < surf->h; i++)
