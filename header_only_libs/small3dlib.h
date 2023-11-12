@@ -10,7 +10,7 @@
   license: CC0 1.0 (public domain)
            found at https://creativecommons.org/publicdomain/zero/1.0/
            + additional waiver of all IP
-  version: 0.902d
+  version: 0.905d
 
   Before including the library, define S3L_PIXEL_FUNCTION to the name of the
   function you'll be using to draw single pixels (this function will be called
@@ -68,7 +68,7 @@
   We use row vectors.
 
   In 3D space, a left-handed coord. system is used. One spatial unit is split
-  into S3L_FRACTIONS_PER_UNIT fractions (fixed point arithmetic).
+  into S3L_FRACTIONS_PER_UNITs fractions (fixed point arithmetic).
 
      y ^
        |   _ 
@@ -166,7 +166,6 @@
   many rendering bugs and imprecisions happening due to overflows, but this will
   also consumer more RAM and may potentially be slower on computers with smaller
   native integer. */
-
   #define S3L_USE_WIDER_TYPES 0
 #endif
 
@@ -190,11 +189,12 @@ typedef
   int32_t 
 #endif
   S3L_Unit;
-    
-/** How many fractions a spatial unit is split into. This is NOT SUPPOSED TO
-BE REDEFINED, so rather don't do it (otherwise things may overflow etc.). */
-
+ 
+/** How many fractions a spatial unit is split into, i.e. this is the fixed
+point scaling. This is NOT SUPPOSED TO BE REDEFINED, so rather don't do it
+(otherwise things may overflow etc.). */
 #define S3L_FRACTIONS_PER_UNIT 512
+#define S3L_F S3L_FRACTIONS_PER_UNIT
 
 typedef 
 #if S3L_USE_WIDER_TYPES
@@ -232,7 +232,6 @@ typedef
     3: Perform both geometrical and barycentric correction of triangle crossing
        the near plane. This is significantly more expensive but results in
        correct rendering. */
-
   #define S3L_NEAR_CROSS_STRATEGY 0
 #endif
 
@@ -242,8 +241,7 @@ typedef
   for the whole triangle. This can be used to create flat-shaded renders and
   will be a lot faster. With this option on you will probably want to use
   sorting instead of z-buffer. */
-
-  #define S3L_FLAT 0           
+  #define S3L_FLAT 0
 #endif
 
 #if S3L_FLAT
@@ -261,7 +259,6 @@ typedef
   2: Approximation (computing only at every S3L_PC_APPROX_LENGTHth pixel). 
      Quake-style approximation is used, which only computes the PC after
      S3L_PC_APPROX_LENGTH pixels. This is reasonably accurate and fast. */
-
   #define S3L_PERSPECTIVE_CORRECTION 0 
 #endif
 
@@ -269,7 +266,6 @@ typedef
   /** For S3L_PERSPECTIVE_CORRECTION == 2, this specifies after how many pixels
   PC is recomputed. Should be a power of two to keep up the performance.
   Smaller is nicer but slower. */
-
   #define S3L_PC_APPROX_LENGTH 32
 #endif
 
@@ -299,13 +295,11 @@ typedef
   2: Use reduced-size z-buffer (of bytes). This is fast and somewhat accurate,
      but inaccuracies can occur and a considerable amount of memory is
      needed. */
-
   #define S3L_Z_BUFFER 0 
 #endif
 
 #ifndef S3L_REDUCED_Z_BUFFER_GRANULARITY
   /** For S3L_Z_BUFFER == 2 this sets the reduced z-buffer granularity. */
-
   #define S3L_REDUCED_Z_BUFFER_GRANULARITY 5
 #endif
 
@@ -313,7 +307,6 @@ typedef
   /** Whether to use stencil buffer for drawing -- with this a pixel that would
   be resterized over an already rasterized pixel (within a frame) will be
   discarded. This is mostly for front-to-back sorted drawing. */
-
   #define S3L_STENCIL_BUFFER 0 
 #endif
 
@@ -335,22 +328,19 @@ typedef
      because we prevent computing pixels that will be overwritten by nearer
      ones, but we need a 1b stencil buffer for this (enable S3L_STENCIL_BUFFER),
      so a bit more memory is needed. */
-
   #define S3L_SORT 0
 #endif
 
 #ifndef S3L_MAX_TRIANGES_DRAWN
   /** Maximum number of triangles that can be drawn in sorted modes. This
   affects the size of the cache used for triangle sorting. */
-
   #define S3L_MAX_TRIANGES_DRAWN 128 
 #endif
 
 #ifndef S3L_NEAR
   /** Distance of the near clipping plane. Points in front or EXATLY ON this
   plane are considered outside the frustum. This must be >= 0. */
-
-  #define S3L_NEAR (S3L_FRACTIONS_PER_UNIT / 4) 
+  #define S3L_NEAR (S3L_F / 4) 
 #endif
 
 #if S3L_NEAR <= 0
@@ -360,7 +350,6 @@ typedef
 #ifndef S3L_NORMAL_COMPUTE_MAXIMUM_AVERAGE
   /** Affects the S3L_computeModelNormals function. See its description for
   details. */
-
   #define S3L_NORMAL_COMPUTE_MAXIMUM_AVERAGE 6
 #endif
 
@@ -370,7 +359,6 @@ typedef
   higher values can fix this -- in theory all higher values will have the same
   speed (it is a shift value), but it mustn't be too high to prevent
   overflow. */
-
   #define S3L_FAST_LERP_QUALITY 11 
 #endif
 
@@ -523,7 +511,9 @@ void S3L_mat4Xmat4(S3L_Mat4 m1, S3L_Mat4 m2);
 
 typedef struct
 {
-  S3L_Unit focalLength;       ///< Defines the field of view (FOV).
+  S3L_Unit focalLength;       /**< Defines the field of view (FOV). 0 sets an
+                                   orthographics projection (scale is controlled
+                                   with camera's scale in its transform). */
   S3L_Transform3D transform;
 } S3L_Camera;
 
@@ -807,7 +797,7 @@ static inline void S3L_rotate2DPoint(S3L_Unit *x, S3L_Unit *y, S3L_Unit angle);
 #define S3L_HALF_RESOLUTION_Y (S3L_RESOLUTION_Y >> 1)
 
 #define S3L_PROJECTION_PLANE_HEIGHT\
-  ((S3L_RESOLUTION_Y * S3L_FRACTIONS_PER_UNIT * 2) / S3L_RESOLUTION_X)
+  ((S3L_RESOLUTION_Y * S3L_F * 2) / S3L_RESOLUTION_X)
 
 #if S3L_Z_BUFFER == 1
   #define S3L_MAX_DEPTH 2147483647
@@ -909,81 +899,81 @@ static inline int8_t S3L_stencilTest(
 static const S3L_Unit S3L_sinTable[S3L_SIN_TABLE_LENGTH] =
 {
   /* 511 was chosen here as a highest number that doesn't overflow during
-     compilation for S3L_FRACTIONS_PER_UNIT == 1024 */
+     compilation for S3L_F == 1024 */
 
-  (0*S3L_FRACTIONS_PER_UNIT)/511, (6*S3L_FRACTIONS_PER_UNIT)/511, 
-  (12*S3L_FRACTIONS_PER_UNIT)/511, (18*S3L_FRACTIONS_PER_UNIT)/511, 
-  (25*S3L_FRACTIONS_PER_UNIT)/511, (31*S3L_FRACTIONS_PER_UNIT)/511, 
-  (37*S3L_FRACTIONS_PER_UNIT)/511, (43*S3L_FRACTIONS_PER_UNIT)/511, 
-  (50*S3L_FRACTIONS_PER_UNIT)/511, (56*S3L_FRACTIONS_PER_UNIT)/511, 
-  (62*S3L_FRACTIONS_PER_UNIT)/511, (68*S3L_FRACTIONS_PER_UNIT)/511, 
-  (74*S3L_FRACTIONS_PER_UNIT)/511, (81*S3L_FRACTIONS_PER_UNIT)/511, 
-  (87*S3L_FRACTIONS_PER_UNIT)/511, (93*S3L_FRACTIONS_PER_UNIT)/511, 
-  (99*S3L_FRACTIONS_PER_UNIT)/511, (105*S3L_FRACTIONS_PER_UNIT)/511, 
-  (111*S3L_FRACTIONS_PER_UNIT)/511, (118*S3L_FRACTIONS_PER_UNIT)/511, 
-  (124*S3L_FRACTIONS_PER_UNIT)/511, (130*S3L_FRACTIONS_PER_UNIT)/511, 
-  (136*S3L_FRACTIONS_PER_UNIT)/511, (142*S3L_FRACTIONS_PER_UNIT)/511, 
-  (148*S3L_FRACTIONS_PER_UNIT)/511, (154*S3L_FRACTIONS_PER_UNIT)/511, 
-  (160*S3L_FRACTIONS_PER_UNIT)/511, (166*S3L_FRACTIONS_PER_UNIT)/511, 
-  (172*S3L_FRACTIONS_PER_UNIT)/511, (178*S3L_FRACTIONS_PER_UNIT)/511, 
-  (183*S3L_FRACTIONS_PER_UNIT)/511, (189*S3L_FRACTIONS_PER_UNIT)/511, 
-  (195*S3L_FRACTIONS_PER_UNIT)/511, (201*S3L_FRACTIONS_PER_UNIT)/511, 
-  (207*S3L_FRACTIONS_PER_UNIT)/511, (212*S3L_FRACTIONS_PER_UNIT)/511, 
-  (218*S3L_FRACTIONS_PER_UNIT)/511, (224*S3L_FRACTIONS_PER_UNIT)/511, 
-  (229*S3L_FRACTIONS_PER_UNIT)/511, (235*S3L_FRACTIONS_PER_UNIT)/511, 
-  (240*S3L_FRACTIONS_PER_UNIT)/511, (246*S3L_FRACTIONS_PER_UNIT)/511, 
-  (251*S3L_FRACTIONS_PER_UNIT)/511, (257*S3L_FRACTIONS_PER_UNIT)/511, 
-  (262*S3L_FRACTIONS_PER_UNIT)/511, (268*S3L_FRACTIONS_PER_UNIT)/511, 
-  (273*S3L_FRACTIONS_PER_UNIT)/511, (278*S3L_FRACTIONS_PER_UNIT)/511, 
-  (283*S3L_FRACTIONS_PER_UNIT)/511, (289*S3L_FRACTIONS_PER_UNIT)/511, 
-  (294*S3L_FRACTIONS_PER_UNIT)/511, (299*S3L_FRACTIONS_PER_UNIT)/511, 
-  (304*S3L_FRACTIONS_PER_UNIT)/511, (309*S3L_FRACTIONS_PER_UNIT)/511, 
-  (314*S3L_FRACTIONS_PER_UNIT)/511, (319*S3L_FRACTIONS_PER_UNIT)/511, 
-  (324*S3L_FRACTIONS_PER_UNIT)/511, (328*S3L_FRACTIONS_PER_UNIT)/511, 
-  (333*S3L_FRACTIONS_PER_UNIT)/511, (338*S3L_FRACTIONS_PER_UNIT)/511, 
-  (343*S3L_FRACTIONS_PER_UNIT)/511, (347*S3L_FRACTIONS_PER_UNIT)/511, 
-  (352*S3L_FRACTIONS_PER_UNIT)/511, (356*S3L_FRACTIONS_PER_UNIT)/511, 
-  (361*S3L_FRACTIONS_PER_UNIT)/511, (365*S3L_FRACTIONS_PER_UNIT)/511, 
-  (370*S3L_FRACTIONS_PER_UNIT)/511, (374*S3L_FRACTIONS_PER_UNIT)/511, 
-  (378*S3L_FRACTIONS_PER_UNIT)/511, (382*S3L_FRACTIONS_PER_UNIT)/511, 
-  (386*S3L_FRACTIONS_PER_UNIT)/511, (391*S3L_FRACTIONS_PER_UNIT)/511, 
-  (395*S3L_FRACTIONS_PER_UNIT)/511, (398*S3L_FRACTIONS_PER_UNIT)/511, 
-  (402*S3L_FRACTIONS_PER_UNIT)/511, (406*S3L_FRACTIONS_PER_UNIT)/511, 
-  (410*S3L_FRACTIONS_PER_UNIT)/511, (414*S3L_FRACTIONS_PER_UNIT)/511, 
-  (417*S3L_FRACTIONS_PER_UNIT)/511, (421*S3L_FRACTIONS_PER_UNIT)/511, 
-  (424*S3L_FRACTIONS_PER_UNIT)/511, (428*S3L_FRACTIONS_PER_UNIT)/511, 
-  (431*S3L_FRACTIONS_PER_UNIT)/511, (435*S3L_FRACTIONS_PER_UNIT)/511, 
-  (438*S3L_FRACTIONS_PER_UNIT)/511, (441*S3L_FRACTIONS_PER_UNIT)/511, 
-  (444*S3L_FRACTIONS_PER_UNIT)/511, (447*S3L_FRACTIONS_PER_UNIT)/511, 
-  (450*S3L_FRACTIONS_PER_UNIT)/511, (453*S3L_FRACTIONS_PER_UNIT)/511, 
-  (456*S3L_FRACTIONS_PER_UNIT)/511, (459*S3L_FRACTIONS_PER_UNIT)/511, 
-  (461*S3L_FRACTIONS_PER_UNIT)/511, (464*S3L_FRACTIONS_PER_UNIT)/511, 
-  (467*S3L_FRACTIONS_PER_UNIT)/511, (469*S3L_FRACTIONS_PER_UNIT)/511, 
-  (472*S3L_FRACTIONS_PER_UNIT)/511, (474*S3L_FRACTIONS_PER_UNIT)/511, 
-  (476*S3L_FRACTIONS_PER_UNIT)/511, (478*S3L_FRACTIONS_PER_UNIT)/511, 
-  (481*S3L_FRACTIONS_PER_UNIT)/511, (483*S3L_FRACTIONS_PER_UNIT)/511, 
-  (485*S3L_FRACTIONS_PER_UNIT)/511, (487*S3L_FRACTIONS_PER_UNIT)/511, 
-  (488*S3L_FRACTIONS_PER_UNIT)/511, (490*S3L_FRACTIONS_PER_UNIT)/511, 
-  (492*S3L_FRACTIONS_PER_UNIT)/511, (494*S3L_FRACTIONS_PER_UNIT)/511, 
-  (495*S3L_FRACTIONS_PER_UNIT)/511, (497*S3L_FRACTIONS_PER_UNIT)/511, 
-  (498*S3L_FRACTIONS_PER_UNIT)/511, (499*S3L_FRACTIONS_PER_UNIT)/511, 
-  (501*S3L_FRACTIONS_PER_UNIT)/511, (502*S3L_FRACTIONS_PER_UNIT)/511, 
-  (503*S3L_FRACTIONS_PER_UNIT)/511, (504*S3L_FRACTIONS_PER_UNIT)/511, 
-  (505*S3L_FRACTIONS_PER_UNIT)/511, (506*S3L_FRACTIONS_PER_UNIT)/511, 
-  (507*S3L_FRACTIONS_PER_UNIT)/511, (507*S3L_FRACTIONS_PER_UNIT)/511, 
-  (508*S3L_FRACTIONS_PER_UNIT)/511, (509*S3L_FRACTIONS_PER_UNIT)/511, 
-  (509*S3L_FRACTIONS_PER_UNIT)/511, (510*S3L_FRACTIONS_PER_UNIT)/511, 
-  (510*S3L_FRACTIONS_PER_UNIT)/511, (510*S3L_FRACTIONS_PER_UNIT)/511, 
-  (510*S3L_FRACTIONS_PER_UNIT)/511, (510*S3L_FRACTIONS_PER_UNIT)/511
+  (0*S3L_F)/511, (6*S3L_F)/511, 
+  (12*S3L_F)/511, (18*S3L_F)/511, 
+  (25*S3L_F)/511, (31*S3L_F)/511, 
+  (37*S3L_F)/511, (43*S3L_F)/511, 
+  (50*S3L_F)/511, (56*S3L_F)/511, 
+  (62*S3L_F)/511, (68*S3L_F)/511, 
+  (74*S3L_F)/511, (81*S3L_F)/511, 
+  (87*S3L_F)/511, (93*S3L_F)/511, 
+  (99*S3L_F)/511, (105*S3L_F)/511, 
+  (111*S3L_F)/511, (118*S3L_F)/511, 
+  (124*S3L_F)/511, (130*S3L_F)/511, 
+  (136*S3L_F)/511, (142*S3L_F)/511, 
+  (148*S3L_F)/511, (154*S3L_F)/511, 
+  (160*S3L_F)/511, (166*S3L_F)/511, 
+  (172*S3L_F)/511, (178*S3L_F)/511, 
+  (183*S3L_F)/511, (189*S3L_F)/511, 
+  (195*S3L_F)/511, (201*S3L_F)/511, 
+  (207*S3L_F)/511, (212*S3L_F)/511, 
+  (218*S3L_F)/511, (224*S3L_F)/511, 
+  (229*S3L_F)/511, (235*S3L_F)/511, 
+  (240*S3L_F)/511, (246*S3L_F)/511, 
+  (251*S3L_F)/511, (257*S3L_F)/511, 
+  (262*S3L_F)/511, (268*S3L_F)/511, 
+  (273*S3L_F)/511, (278*S3L_F)/511, 
+  (283*S3L_F)/511, (289*S3L_F)/511, 
+  (294*S3L_F)/511, (299*S3L_F)/511, 
+  (304*S3L_F)/511, (309*S3L_F)/511, 
+  (314*S3L_F)/511, (319*S3L_F)/511, 
+  (324*S3L_F)/511, (328*S3L_F)/511, 
+  (333*S3L_F)/511, (338*S3L_F)/511, 
+  (343*S3L_F)/511, (347*S3L_F)/511, 
+  (352*S3L_F)/511, (356*S3L_F)/511, 
+  (361*S3L_F)/511, (365*S3L_F)/511, 
+  (370*S3L_F)/511, (374*S3L_F)/511, 
+  (378*S3L_F)/511, (382*S3L_F)/511, 
+  (386*S3L_F)/511, (391*S3L_F)/511, 
+  (395*S3L_F)/511, (398*S3L_F)/511, 
+  (402*S3L_F)/511, (406*S3L_F)/511, 
+  (410*S3L_F)/511, (414*S3L_F)/511, 
+  (417*S3L_F)/511, (421*S3L_F)/511, 
+  (424*S3L_F)/511, (428*S3L_F)/511, 
+  (431*S3L_F)/511, (435*S3L_F)/511, 
+  (438*S3L_F)/511, (441*S3L_F)/511, 
+  (444*S3L_F)/511, (447*S3L_F)/511, 
+  (450*S3L_F)/511, (453*S3L_F)/511, 
+  (456*S3L_F)/511, (459*S3L_F)/511, 
+  (461*S3L_F)/511, (464*S3L_F)/511, 
+  (467*S3L_F)/511, (469*S3L_F)/511, 
+  (472*S3L_F)/511, (474*S3L_F)/511, 
+  (476*S3L_F)/511, (478*S3L_F)/511, 
+  (481*S3L_F)/511, (483*S3L_F)/511, 
+  (485*S3L_F)/511, (487*S3L_F)/511, 
+  (488*S3L_F)/511, (490*S3L_F)/511, 
+  (492*S3L_F)/511, (494*S3L_F)/511, 
+  (495*S3L_F)/511, (497*S3L_F)/511, 
+  (498*S3L_F)/511, (499*S3L_F)/511, 
+  (501*S3L_F)/511, (502*S3L_F)/511, 
+  (503*S3L_F)/511, (504*S3L_F)/511, 
+  (505*S3L_F)/511, (506*S3L_F)/511, 
+  (507*S3L_F)/511, (507*S3L_F)/511, 
+  (508*S3L_F)/511, (509*S3L_F)/511, 
+  (509*S3L_F)/511, (510*S3L_F)/511, 
+  (510*S3L_F)/511, (510*S3L_F)/511, 
+  (510*S3L_F)/511, (510*S3L_F)/511
 };
 #endif
 
 #define S3L_SIN_TABLE_UNIT_STEP\
-  (S3L_FRACTIONS_PER_UNIT / (S3L_SIN_TABLE_LENGTH * 4))
+  (S3L_F / (S3L_SIN_TABLE_LENGTH * 4))
 
 void S3L_vec4Init(S3L_Vec4 *v)
 {
-  v->x = 0; v->y = 0; v->z = 0; v->w = S3L_FRACTIONS_PER_UNIT;
+  v->x = 0; v->y = 0; v->z = 0; v->w = S3L_F;
 }
 
 void S3L_vec4Set(S3L_Vec4 *v, S3L_Unit x, S3L_Unit y, S3L_Unit z, S3L_Unit w)
@@ -1011,7 +1001,7 @@ void S3L_vec3Sub(S3L_Vec4 *result, S3L_Vec4 substracted)
 void S3L_mat4Init(S3L_Mat4 m)
 {
   #define M(x,y) m[x][y]
-  #define S S3L_FRACTIONS_PER_UNIT
+  #define S S3L_F
 
   M(0,0) = S; M(1,0) = 0; M(2,0) = 0; M(3,0) = 0; 
   M(0,1) = 0; M(1,1) = S; M(2,1) = 0; M(3,1) = 0; 
@@ -1031,16 +1021,16 @@ void S3L_mat4Copy(S3L_Mat4 src, S3L_Mat4 dst)
 
 S3L_Unit S3L_vec3Dot(S3L_Vec4 a, S3L_Vec4 b)
 {
-  return (a.x * b.x + a.y * b.y + a.z * b.z) / S3L_FRACTIONS_PER_UNIT;
+  return (a.x * b.x + a.y * b.y + a.z * b.z) / S3L_F;
 }
 
 void S3L_reflect(S3L_Vec4 toLight, S3L_Vec4 normal, S3L_Vec4 *result)
 {
   S3L_Unit d = 2 * S3L_vec3Dot(toLight,normal);
 
-  result->x = (normal.x * d) / S3L_FRACTIONS_PER_UNIT - toLight.x;
-  result->y = (normal.y * d) / S3L_FRACTIONS_PER_UNIT - toLight.y;
-  result->z = (normal.z * d) / S3L_FRACTIONS_PER_UNIT - toLight.z;
+  result->x = (normal.x * d) / S3L_F - toLight.x;
+  result->y = (normal.y * d) / S3L_F - toLight.y;
+  result->z = (normal.z * d) / S3L_F - toLight.z;
 }
 
 void S3L_vec3Cross(S3L_Vec4 a, S3L_Vec4 b, S3L_Vec4 *result)
@@ -1167,7 +1157,7 @@ void S3L_computeModelNormals(S3L_Model3D model, S3L_Unit *dst,
       }
     }
       
-    n.x = S3L_FRACTIONS_PER_UNIT;
+    n.x = S3L_F;
     n.y = 0;
     n.z = 0;
 
@@ -1233,7 +1223,7 @@ void S3L_vec4Xmat4(S3L_Vec4 *v, S3L_Mat4 m)
     ((vBackup.x * m[col][0]) +\
      (vBackup.y * m[col][1]) +\
      (vBackup.z * m[col][2]) +\
-     (vBackup.w * m[col][3])) / S3L_FRACTIONS_PER_UNIT
+     (vBackup.w * m[col][3])) / S3L_F
 
   v->x = dotCol(0);
   v->y = dotCol(1);
@@ -1247,9 +1237,9 @@ void S3L_vec3Xmat4(S3L_Vec4 *v, S3L_Mat4 m)
 
   #undef dotCol
   #define dotCol(col)\
-    (vBackup.x * m[col][0]) / S3L_FRACTIONS_PER_UNIT +\
-    (vBackup.y * m[col][1]) / S3L_FRACTIONS_PER_UNIT +\
-    (vBackup.z * m[col][2]) / S3L_FRACTIONS_PER_UNIT +\
+    (vBackup.x * m[col][0]) / S3L_F +\
+    (vBackup.y * m[col][1]) / S3L_F +\
+    (vBackup.z * m[col][2]) / S3L_F +\
     m[col][3]
 
   vBackup.x = v->x;  
@@ -1260,7 +1250,7 @@ void S3L_vec3Xmat4(S3L_Vec4 *v, S3L_Mat4 m)
   v->x = dotCol(0);
   v->y = dotCol(1);
   v->z = dotCol(2);
-  v->w = S3L_FRACTIONS_PER_UNIT;
+  v->w = S3L_F;
 }
 
 #undef dotCol
@@ -1307,12 +1297,12 @@ S3L_Unit S3L_interpolate(S3L_Unit v1, S3L_Unit v2, S3L_Unit t, S3L_Unit tMax)
 
 S3L_Unit S3L_interpolateByUnit(S3L_Unit v1, S3L_Unit v2, S3L_Unit t)
 {
-  return v1 + ((v2 - v1) * t) / S3L_FRACTIONS_PER_UNIT;
+  return v1 + ((v2 - v1) * t) / S3L_F;
 }
 
 S3L_Unit S3L_interpolateByUnitFrom0(S3L_Unit v2, S3L_Unit t)
 {
-  return (v2 * t) / S3L_FRACTIONS_PER_UNIT;
+  return (v2 * t) / S3L_F;
 }
 
 S3L_Unit S3L_interpolateFrom0(S3L_Unit v2, S3L_Unit t, S3L_Unit tMax)
@@ -1343,7 +1333,7 @@ void S3L_mat4Xmat4(S3L_Mat4 m1, S3L_Mat4 m2)
 
       for (uint16_t i = 0; i < 4; ++i)
         m1[col][row] +=
-          (mat1[i][row] * m2[col][i]) / S3L_FRACTIONS_PER_UNIT;
+          (mat1[i][row] * m2[col][i]) / S3L_F;
     }
 }
 
@@ -1381,21 +1371,21 @@ S3L_Unit S3L_sin(S3L_Unit x)
     sign = -1;
   }
     
-  x %= S3L_FRACTIONS_PER_UNIT;
+  x %= S3L_F;
   
-  if (x > S3L_FRACTIONS_PER_UNIT / 2)
+  if (x > S3L_F / 2)
   {
-    x -= S3L_FRACTIONS_PER_UNIT / 2;
+    x -= S3L_F / 2;
     sign *= -1;
   }
 
-  S3L_Unit tmp = S3L_FRACTIONS_PER_UNIT - 2 * x;
+  S3L_Unit tmp = S3L_F - 2 * x;
  
-  #define _PI2 ((S3L_Unit) (9.8696044 * S3L_FRACTIONS_PER_UNIT))
+  #define _PI2 ((S3L_Unit) (9.8696044 * S3L_F))
   return sign * // Bhaskara's approximation
-    (((32 * x * _PI2) / S3L_FRACTIONS_PER_UNIT) * tmp) / 
-    ((_PI2 * (5 * S3L_FRACTIONS_PER_UNIT - (8 * x * tmp) / 
-      S3L_FRACTIONS_PER_UNIT)) / S3L_FRACTIONS_PER_UNIT);
+    (((32 * x * _PI2) / S3L_F) * tmp) / 
+    ((_PI2 * (5 * S3L_F - (8 * x * tmp) / 
+      S3L_F)) / S3L_F);
   #undef _PI2
 #endif
 }
@@ -1403,7 +1393,7 @@ S3L_Unit S3L_sin(S3L_Unit x)
 S3L_Unit S3L_asin(S3L_Unit x)
 {
 #if S3L_SIN_METHOD == 0
-  x = S3L_clamp(x,-S3L_FRACTIONS_PER_UNIT,S3L_FRACTIONS_PER_UNIT);
+  x = S3L_clamp(x,-S3L_F,S3L_F);
 
   int8_t sign = 1;
 
@@ -1433,8 +1423,8 @@ S3L_Unit S3L_asin(S3L_Unit x)
 
   return sign * middle;
 #else
-  S3L_Unit low = -1 * S3L_FRACTIONS_PER_UNIT / 4,
-           high = S3L_FRACTIONS_PER_UNIT / 4,
+  S3L_Unit low = -1 * S3L_F / 4,
+           high = S3L_F / 4,
            middle;
     
   while (low <= high) // binary search
@@ -1457,15 +1447,15 @@ S3L_Unit S3L_asin(S3L_Unit x)
 
 S3L_Unit S3L_cos(S3L_Unit x)
 {
-  return S3L_sin(x + S3L_FRACTIONS_PER_UNIT / 4);
+  return S3L_sin(x + S3L_F / 4);
 }
 
 void S3L_correctBarycentricCoords(S3L_Unit barycentric[3])
 {
-  barycentric[0] = S3L_clamp(barycentric[0],0,S3L_FRACTIONS_PER_UNIT);
-  barycentric[1] = S3L_clamp(barycentric[1],0,S3L_FRACTIONS_PER_UNIT);
+  barycentric[0] = S3L_clamp(barycentric[0],0,S3L_F);
+  barycentric[1] = S3L_clamp(barycentric[1],0,S3L_F);
 
-  S3L_Unit d = S3L_FRACTIONS_PER_UNIT - barycentric[0] - barycentric[1];
+  S3L_Unit d = S3L_F - barycentric[0] - barycentric[1];
 
   if (d < 0)
   {
@@ -1483,7 +1473,7 @@ void S3L_makeTranslationMat(
   S3L_Mat4 m)
 {
   #define M(x,y) m[x][y]
-  #define S S3L_FRACTIONS_PER_UNIT
+  #define S S3L_F
 
   M(0,0) = S; M(1,0) = 0; M(2,0) = 0; M(3,0) = 0; 
   M(0,1) = 0; M(1,1) = S; M(2,1) = 0; M(3,1) = 0; 
@@ -1505,7 +1495,7 @@ void S3L_makeScaleMatrix(
   M(0,0) = scaleX; M(1,0) = 0;      M(2,0) = 0;     M(3,0) = 0; 
   M(0,1) = 0;      M(1,1) = scaleY; M(2,1) = 0; M(3,1) = 0; 
   M(0,2) = 0;      M(1,2) = 0;      M(2,2) = scaleZ; M(3,2) = 0; 
-  M(0,3) = 0;      M(1,3) = 0;     M(2,3) = 0; M(3,3) = S3L_FRACTIONS_PER_UNIT; 
+  M(0,3) = 0;      M(1,3) = 0;     M(2,3) = 0; M(3,3) = S3L_F; 
 
   #undef M
 }
@@ -1529,7 +1519,7 @@ void S3L_makeRotationMatrixZXY(
   S3L_Unit cz = S3L_cos(byZ);
 
   #define M(x,y) m[x][y]
-  #define S S3L_FRACTIONS_PER_UNIT
+  #define S S3L_F
 
   M(0,0) = (cy * cz) / S + (sy * sx * sz) / (S * S);
   M(1,0) = (cx * sz) / S;
@@ -1549,7 +1539,7 @@ void S3L_makeRotationMatrixZXY(
   M(0,3) = 0;
   M(1,3) = 0;
   M(2,3) = 0;
-  M(3,3) = S3L_FRACTIONS_PER_UNIT;
+  M(3,3) = S3L_F;
 
   #undef M
   #undef S 
@@ -1636,9 +1626,9 @@ void S3L_vec3Normalize(S3L_Vec4 *v)
   if (l == 0)
     return;
 
-  v->x = (v->x * S3L_FRACTIONS_PER_UNIT) / l;
-  v->y = (v->y * S3L_FRACTIONS_PER_UNIT) / l;
-  v->z = (v->z * S3L_FRACTIONS_PER_UNIT) / l;
+  v->x = (v->x * S3L_F) / l;
+  v->y = (v->y * S3L_F) / l;
+  v->z = (v->z * S3L_F) / l;
 }
 
 void S3L_vec3NormalizeFast(S3L_Vec4 *v)
@@ -1648,18 +1638,18 @@ void S3L_vec3NormalizeFast(S3L_Vec4 *v)
   if (l == 0)
     return;
 
-  v->x = (v->x * S3L_FRACTIONS_PER_UNIT) / l;
-  v->y = (v->y * S3L_FRACTIONS_PER_UNIT) / l;
-  v->z = (v->z * S3L_FRACTIONS_PER_UNIT) / l;
+  v->x = (v->x * S3L_F) / l;
+  v->y = (v->y * S3L_F) / l;
+  v->z = (v->z * S3L_F) / l;
 }
 
 void S3L_transform3DInit(S3L_Transform3D *t)
 {
   S3L_vec4Init(&(t->translation));
   S3L_vec4Init(&(t->rotation));
-  t->scale.x = S3L_FRACTIONS_PER_UNIT;
-  t->scale.y = S3L_FRACTIONS_PER_UNIT;
-  t->scale.z = S3L_FRACTIONS_PER_UNIT;
+  t->scale.x = S3L_F;
+  t->scale.y = S3L_F;
+  t->scale.z = S3L_F;
   t->scale.w = 0;
 }
 
@@ -1668,6 +1658,9 @@ void S3L_transform3DInit(S3L_Transform3D *t)
 static inline void S3L_perspectiveDivide(S3L_Vec4 *vector,
   S3L_Unit focalLength)
 {
+  if (focalLength == 0)
+    return;
+
   vector->x = (vector->x * focalLength) / vector->z;
   vector->y = (vector->y * focalLength) / vector->z;
 }
@@ -1677,12 +1670,29 @@ void S3L_project3DPointToScreen(
   S3L_Camera camera,
   S3L_Vec4 *result)
 {
+  // TODO: hotfix to prevent a mapping bug probably to overlfows
+  S3L_Vec4 toPoint = point, camForw;
+
+  S3L_vec3Sub(&toPoint,camera.transform.translation);
+
+  S3L_vec3Normalize(&toPoint);
+
+  S3L_rotationToDirections(camera.transform.rotation,S3L_FRACTIONS_PER_UNIT,
+    &camForw,0,0);
+
+  if (S3L_vec3Dot(toPoint,camForw) < S3L_FRACTIONS_PER_UNIT / 6)
+  {
+    result->z = -1;
+    result->w = 0;
+    return;
+  }
+  // end of hotfix
   S3L_Mat4 m;
   S3L_makeCameraMatrix(camera.transform,m);
 
   S3L_Unit s = point.w;
 
-  point.w = S3L_FRACTIONS_PER_UNIT;
+  point.w = S3L_F;
 
   S3L_vec3Xmat4(&point,m);
 
@@ -1701,8 +1711,10 @@ void S3L_project3DPointToScreen(
   result->w =
     (point.z <= 0) ? 0 :
     (
+      camera.focalLength > 0 ?(
       (s * camera.focalLength * S3L_RESOLUTION_X) /
-        (point.z * S3L_FRACTIONS_PER_UNIT)
+        (point.z * S3L_F)) :
+      ((camera.transform.scale.x * S3L_RESOLUTION_X) / S3L_F)
     );
 }
 
@@ -1716,19 +1728,19 @@ void S3L_lookAt(S3L_Vec4 pointTo, S3L_Transform3D *t)
   S3L_Unit dx = v.x;
   S3L_Unit l = S3L_vec2Length(v);
 
-  dx = (v.x * S3L_FRACTIONS_PER_UNIT) / S3L_nonZero(l); // normalize
+  dx = (v.x * S3L_F) / S3L_nonZero(l); // normalize
 
   t->rotation.y = -1 * S3L_asin(dx);
 
   if (v.y < 0)
-    t->rotation.y = S3L_FRACTIONS_PER_UNIT / 2 - t->rotation.y;
+    t->rotation.y = S3L_F / 2 - t->rotation.y;
 
   v.x = pointTo.y - t->translation.y;
   v.y = l;
  
   l = S3L_vec2Length(v);
  
-  dx = (v.x * S3L_FRACTIONS_PER_UNIT) / S3L_nonZero(l);
+  dx = (v.x * S3L_F) / S3L_nonZero(l);
 
   t->rotation.x = S3L_asin(dx);
 }
@@ -1760,7 +1772,7 @@ void S3L_transform3DSet(
 
 void S3L_cameraInit(S3L_Camera *camera)
 {
-  camera->focalLength = S3L_FRACTIONS_PER_UNIT;
+  camera->focalLength = S3L_F;
   S3L_transform3DInit(&(camera->transform));
 }
 
@@ -1804,7 +1816,7 @@ void S3L_pixelInfoInit(S3L_PixelInfo *p)
 {
   p->x = 0;
   p->y = 0;
-  p->barycentric[0] = S3L_FRACTIONS_PER_UNIT;
+  p->barycentric[0] = S3L_F;
   p->barycentric[1] = 0;
   p->barycentric[2] = 0;
   p->modelIndex = 0;
@@ -1888,7 +1900,7 @@ static inline S3L_Unit S3L_interpolateBarycentric(
       (value0 * barycentric[0]) +
       (value1 * barycentric[1]) +
       (value2 * barycentric[2])
-    ) / S3L_FRACTIONS_PER_UNIT;
+    ) / S3L_F;
 }
 
 void S3L_mapProjectionPlaneToScreen(
@@ -1898,11 +1910,11 @@ void S3L_mapProjectionPlaneToScreen(
 {
   *screenX = 
     S3L_HALF_RESOLUTION_X +
-    (point.x * S3L_HALF_RESOLUTION_X) / S3L_FRACTIONS_PER_UNIT;
+    (point.x * S3L_HALF_RESOLUTION_X) / S3L_F;
 
   *screenY = 
     S3L_HALF_RESOLUTION_Y -
-    (point.y * S3L_HALF_RESOLUTION_X) / S3L_FRACTIONS_PER_UNIT;
+    (point.y * S3L_HALF_RESOLUTION_X) / S3L_F;
 }
 
 void S3L_zBufferClear(void)
@@ -1927,10 +1939,8 @@ void S3L_newFrame(void)
   S3L_stencilBufferClear();
 }
 
-/* 
-  the following serves to communicate info about if the triangle has been split
-  and how the barycentrics should be remapped.
-*/
+/* the following serves to communicate info about if the triangle has been split
+  and how the barycentrics should be remapped. */
 uint8_t _S3L_projectedTriangleState = 0; // 0 = normal, 1 = cut, 2 = split
 
 #if S3L_NEAR_CROSS_STRATEGY == 3
@@ -1952,7 +1962,7 @@ void S3L_drawTriangle(
 
   S3L_Vec4 *tPointSS, *lPointSS, *rPointSS; /* points in Screen Space (in
                                                S3L_Units, normalized by
-                                               S3L_FRACTIONS_PER_UNIT) */
+                                               S3L_F) */
 
   S3L_Unit *barycentric0; // bar. coord that gets higher from L to R
   S3L_Unit *barycentric1; // bar. coord that gets higher from R to L
@@ -1997,9 +2007,9 @@ void S3L_drawTriangle(
   #undef assignPoints
 
 #if S3L_FLAT
-  *barycentric0 = S3L_FRACTIONS_PER_UNIT / 3;
-  *barycentric1 = S3L_FRACTIONS_PER_UNIT / 3;
-  *barycentric2 = S3L_FRACTIONS_PER_UNIT - 2 * (S3L_FRACTIONS_PER_UNIT / 3);
+  *barycentric0 = S3L_F / 3;
+  *barycentric1 = S3L_F / 3;
+  *barycentric2 = S3L_F - 2 * (S3L_F / 3);
 #endif
 
   p.triangleSize[0] = rPointSS->x - lPointSS->x;
@@ -2082,13 +2092,13 @@ void S3L_drawTriangle(
     s##Dx = p2##PointSS->x - p1##PointSS->x;\
     s##Dy = p2##PointSS->y - p1##PointSS->y;\
     initDepthFLS(s,p1,p2)\
-    s##SideFLS.stepScaled = (S3L_FRACTIONS_PER_UNIT << S3L_FAST_LERP_QUALITY)\
+    s##SideFLS.stepScaled = (S3L_F << S3L_FAST_LERP_QUALITY)\
                       / (s##Dy != 0 ? s##Dy : 1);\
     s##SideFLS.valueScaled = 0;\
     if (!down)\
     {\
       s##SideFLS.valueScaled =\
-        S3L_FRACTIONS_PER_UNIT << S3L_FAST_LERP_QUALITY;\
+        S3L_F << S3L_FAST_LERP_QUALITY;\
       s##SideFLS.stepScaled *= -1;\
     }\
     s##Inc = s##Dx >= 0 ? 1 : -1;\
@@ -2118,10 +2128,10 @@ void S3L_drawTriangle(
 
   #if S3L_PERSPECTIVE_CORRECTION == 1
     #define Z_RECIP_NUMERATOR\
-      (S3L_FRACTIONS_PER_UNIT * S3L_FRACTIONS_PER_UNIT * S3L_FRACTIONS_PER_UNIT)
+      (S3L_F * S3L_F * S3L_F)
   #elif S3L_PERSPECTIVE_CORRECTION == 2
     #define Z_RECIP_NUMERATOR\
-      (S3L_FRACTIONS_PER_UNIT * S3L_FRACTIONS_PER_UNIT)
+      (S3L_F * S3L_F)
   #endif
   /* ^ This numerator is a number by which we divide values for the
      reciprocals. For PC == 2 it has to be lower because linear interpolation
@@ -2170,7 +2180,7 @@ void S3L_drawTriangle(
         S3L_Unit *tmp = barycentric##b0;\
         barycentric##b0 = barycentric##b1;\
         barycentric##b1 = tmp;\
-        s0##SideFLS.valueScaled = (S3L_FRACTIONS_PER_UNIT\
+        s0##SideFLS.valueScaled = (S3L_F\
            << S3L_FAST_LERP_QUALITY) - s0##SideFLS.valueScaled;\
         s0##SideFLS.stepScaled *= -1;\
         manageSplitPerspective(s0,s1)
@@ -2275,13 +2285,13 @@ void S3L_drawTriangle(
            ( 
              S3L_interpolateFrom0(rOverZ,i,rowLength)
              * depthPC.valueScaled
-           ) / (Z_RECIP_NUMERATOR / S3L_FRACTIONS_PER_UNIT);
+           ) / (Z_RECIP_NUMERATOR / S3L_F);
 
        b1PC.valueScaled =
            ( 
              (lOverZ - S3L_interpolateFrom0(lOverZ,i,rowLength))
              * depthPC.valueScaled
-           ) / (Z_RECIP_NUMERATOR / S3L_FRACTIONS_PER_UNIT);
+           ) / (Z_RECIP_NUMERATOR / S3L_F);
 
       int8_t rowCount = S3L_PC_APPROX_LENGTH;
 #endif
@@ -2329,7 +2339,7 @@ void S3L_drawTriangle(
              ( 
                S3L_interpolateFrom0(rOverZ,nextI,rowLength)
                * nextDepthScaled
-             ) / (Z_RECIP_NUMERATOR / S3L_FRACTIONS_PER_UNIT);
+             ) / (Z_RECIP_NUMERATOR / S3L_F);
 
             b0PC.stepScaled =
               (nextValue - b0PC.valueScaled) / S3L_PC_APPROX_LENGTH;
@@ -2338,7 +2348,7 @@ void S3L_drawTriangle(
              ( 
                (lOverZ - S3L_interpolateFrom0(lOverZ,nextI,rowLength))
                * nextDepthScaled
-             ) / (Z_RECIP_NUMERATOR / S3L_FRACTIONS_PER_UNIT);
+             ) / (Z_RECIP_NUMERATOR / S3L_F);
 
             b1PC.stepScaled =
               (nextValue - b1PC.valueScaled) / S3L_PC_APPROX_LENGTH;
@@ -2366,7 +2376,7 @@ void S3L_drawTriangle(
              ( 
                rOverZ
                * nextDepthScaled
-             ) / (Z_RECIP_NUMERATOR / S3L_FRACTIONS_PER_UNIT);
+             ) / (Z_RECIP_NUMERATOR / S3L_F);
 
             b0PC.stepScaled =
               (nextValue - b0PC.valueScaled) / maxI;
@@ -2405,50 +2415,49 @@ void S3L_drawTriangle(
            ( 
              S3L_interpolateFrom0(rOverZ,i,rowLength)
              * p.depth
-           ) / (Z_RECIP_NUMERATOR / S3L_FRACTIONS_PER_UNIT);
+           ) / (Z_RECIP_NUMERATOR / S3L_F);
 
           *barycentric1 =
            ( 
              (lOverZ - S3L_interpolateFrom0(lOverZ,i,rowLength))
              * p.depth
-           ) / (Z_RECIP_NUMERATOR / S3L_FRACTIONS_PER_UNIT);
+           ) / (Z_RECIP_NUMERATOR / S3L_F);
   #elif S3L_PERSPECTIVE_CORRECTION == 2
           *barycentric0 = S3L_getFastLerpValue(b0PC);
           *barycentric1 = S3L_getFastLerpValue(b1PC);
   #endif
 
           *barycentric2 =
-            S3L_FRACTIONS_PER_UNIT - *barycentric0 - *barycentric1;
+            S3L_F - *barycentric0 - *barycentric1;
 #endif
 
 #if S3L_NEAR_CROSS_STRATEGY == 3
+          if (_S3L_projectedTriangleState != 0)
+          {
+            S3L_Unit newBarycentric[3];
 
-if (_S3L_projectedTriangleState != 0)
-{
-  S3L_Unit newBarycentric[3];
+            newBarycentric[0] = S3L_interpolateBarycentric(
+              _S3L_triangleRemapBarycentrics[0].x,
+              _S3L_triangleRemapBarycentrics[1].x,
+              _S3L_triangleRemapBarycentrics[2].x,
+              p.barycentric); 
 
-  newBarycentric[0] = S3L_interpolateBarycentric(
-    _S3L_triangleRemapBarycentrics[0].x,
-    _S3L_triangleRemapBarycentrics[1].x,
-    _S3L_triangleRemapBarycentrics[2].x,
-    p.barycentric); 
+            newBarycentric[1] = S3L_interpolateBarycentric(
+              _S3L_triangleRemapBarycentrics[0].y,
+              _S3L_triangleRemapBarycentrics[1].y,
+              _S3L_triangleRemapBarycentrics[2].y,
+              p.barycentric); 
 
-  newBarycentric[1] = S3L_interpolateBarycentric(
-    _S3L_triangleRemapBarycentrics[0].y,
-    _S3L_triangleRemapBarycentrics[1].y,
-    _S3L_triangleRemapBarycentrics[2].y,
-    p.barycentric); 
+            newBarycentric[2] = S3L_interpolateBarycentric(
+              _S3L_triangleRemapBarycentrics[0].z,
+              _S3L_triangleRemapBarycentrics[1].z,
+              _S3L_triangleRemapBarycentrics[2].z,
+              p.barycentric); 
 
-  newBarycentric[2] = S3L_interpolateBarycentric(
-    _S3L_triangleRemapBarycentrics[0].z,
-    _S3L_triangleRemapBarycentrics[1].z,
-    _S3L_triangleRemapBarycentrics[2].z,
-    p.barycentric); 
-
-  p.barycentric[0] = newBarycentric[0];
-  p.barycentric[1] = newBarycentric[1];
-  p.barycentric[2] = newBarycentric[2];
-}
+            p.barycentric[0] = newBarycentric[0];
+            p.barycentric[1] = newBarycentric[1];
+            p.barycentric[2] = newBarycentric[2];
+          }
 #endif
           S3L_PIXEL_FUNCTION(&p);
         } // tests passed
@@ -2502,12 +2511,12 @@ void S3L_rotate2DPoint(S3L_Unit *x, S3L_Unit *y, S3L_Unit angle)
   S3L_Unit xBackup = *x;
 
   *x =
-    (angleCos * (*x)) / S3L_FRACTIONS_PER_UNIT -
-    (angleSin * (*y)) / S3L_FRACTIONS_PER_UNIT;
+    (angleCos * (*x)) / S3L_F -
+    (angleSin * (*y)) / S3L_F;
 
   *y =
-    (angleSin * xBackup) / S3L_FRACTIONS_PER_UNIT +
-    (angleCos * (*y)) / S3L_FRACTIONS_PER_UNIT;
+    (angleSin * xBackup) / S3L_F +
+    (angleCos * (*y)) / S3L_F;
 }
 
 void S3L_makeWorldMatrix(S3L_Transform3D worldTransform, S3L_Mat4 m)
@@ -2568,7 +2577,15 @@ void S3L_makeCameraMatrix(S3L_Transform3D cameraTransform, S3L_Mat4 m)
 
   S3L_mat4Transpose(r); // transposing creates an inverse transform
 
+  S3L_Mat4 s;
+
+  S3L_makeScaleMatrix(
+  cameraTransform.scale.x,
+  cameraTransform.scale.y,
+  cameraTransform.scale.z,s);
+    
   S3L_mat4Xmat4(m,r);
+  S3L_mat4Xmat4(m,s);
 }
 
 int8_t S3L_triangleWinding(
@@ -2586,11 +2603,9 @@ int8_t S3L_triangleWinding(
   return winding > 0 ? 1 : (winding < 0 ? -1 : 0);
 }
 
-/**
-  Checks if given triangle (in Screen Space) is at least partially visible,
+/** Checks if given triangle (in Screen Space) is at least partially visible,
   i.e. returns false if the triangle is either completely outside the frustum
-  (left, right, top, bottom, near) or is invisible due to backface culling.
-*/
+  (left, right, top, bottom, near) or is invisible due to backface culling. */
 static inline int8_t S3L_triangleIsVisible(
   S3L_Vec4 p0,
   S3L_Vec4 p1,
@@ -2641,19 +2656,15 @@ _S3L_TriangleToSort S3L_sortArray[S3L_MAX_TRIANGES_DRAWN];
 uint16_t S3L_sortArrayLength;
 #endif
 
-void _S3L_projectVertex(
-  const S3L_Model3D *model,
-  S3L_Index triangleIndex,
-  uint8_t vertex,
-  S3L_Mat4 projectionMatrix, 
-  S3L_Vec4 *result)
+void _S3L_projectVertex(const S3L_Model3D *model, S3L_Index triangleIndex,
+  uint8_t vertex, S3L_Mat4 projectionMatrix, S3L_Vec4 *result)
 {
   uint32_t vertexIndex = model->triangles[triangleIndex * 3 + vertex] * 3;
 
   result->x = model->vertices[vertexIndex];
   result->y = model->vertices[vertexIndex + 1];
   result->z = model->vertices[vertexIndex + 2];
-  result->w = S3L_FRACTIONS_PER_UNIT; // needed for translation 
+  result->w = S3L_F; // needed for translation 
  
   S3L_vec3Xmat4(result,projectionMatrix);
 
@@ -2679,12 +2690,10 @@ void _S3L_mapProjectedVertexToScreen(S3L_Vec4 *vertex, S3L_Unit focalLength)
   vertex->y = sY;
 }
 
-/**
-  Projects a triangle to the screen. If enabled, a triangle can be potentially
+/** Projects a triangle to the screen. If enabled, a triangle can be potentially
   subdivided into two if it crosses the near plane, in which case two projected
   triangles are returned (the info about splitting or cutting the triangle is
-  passed in global variables, see above).
-*/
+  passed in global variables, see above). */
 void _S3L_projectTriangle(
   const S3L_Model3D *model,
   S3L_Index triangleIndex,
@@ -2695,7 +2704,6 @@ void _S3L_projectTriangle(
   _S3L_projectVertex(model,triangleIndex,0,matrix,&(transformed[0]));
   _S3L_projectVertex(model,triangleIndex,1,matrix,&(transformed[1]));
   _S3L_projectVertex(model,triangleIndex,2,matrix,&(transformed[2]));
-
   _S3L_projectedTriangleState = 0;
 
 #if S3L_NEAR_CROSS_STRATEGY == 2 || S3L_NEAR_CROSS_STRATEGY == 3
@@ -2720,30 +2728,30 @@ void _S3L_projectTriangle(
     for (int i = 0; i < 3; ++i)
       S3L_vec4Init(&(_S3L_triangleRemapBarycentrics[i]));
 
-    _S3L_triangleRemapBarycentrics[0].x = S3L_FRACTIONS_PER_UNIT;
-    _S3L_triangleRemapBarycentrics[1].y = S3L_FRACTIONS_PER_UNIT;
-    _S3L_triangleRemapBarycentrics[2].z = S3L_FRACTIONS_PER_UNIT;
+    _S3L_triangleRemapBarycentrics[0].x = S3L_F;
+    _S3L_triangleRemapBarycentrics[1].y = S3L_F;
+    _S3L_triangleRemapBarycentrics[2].z = S3L_F;
 #endif
 
 #define interpolateVertex \
   S3L_Unit ratio =\
-    ((transformed[be].z - S3L_NEAR) * S3L_FRACTIONS_PER_UNIT) /\
+    ((transformed[be].z - S3L_NEAR) * S3L_F) /\
     (transformed[be].z - transformed[in].z);\
   transformed[in].x = transformed[be].x - \
     ((transformed[be].x - transformed[in].x) * ratio) /\
-      S3L_FRACTIONS_PER_UNIT;\
+      S3L_F;\
   transformed[in].y = transformed[be].y -\
     ((transformed[be].y - transformed[in].y) * ratio) /\
-      S3L_FRACTIONS_PER_UNIT;\
+      S3L_F;\
   transformed[in].z = S3L_NEAR;\
   if (beI != 0) {\
-    beI->x = (beI->x * ratio) / S3L_FRACTIONS_PER_UNIT;\
-    beI->y = (beI->y * ratio) / S3L_FRACTIONS_PER_UNIT;\
-    beI->z = (beI->z * ratio) / S3L_FRACTIONS_PER_UNIT;\
-    ratio = S3L_FRACTIONS_PER_UNIT - ratio;\
-    beI->x += (beB->x * ratio) / S3L_FRACTIONS_PER_UNIT;\
-    beI->y += (beB->y * ratio) / S3L_FRACTIONS_PER_UNIT;\
-    beI->z += (beB->z * ratio) / S3L_FRACTIONS_PER_UNIT; }
+    beI->x = (beI->x * ratio) / S3L_F;\
+    beI->y = (beI->y * ratio) / S3L_F;\
+    beI->z = (beI->z * ratio) / S3L_F;\
+    ratio = S3L_F - ratio;\
+    beI->x += (beB->x * ratio) / S3L_F;\
+    beI->y += (beB->y * ratio) / S3L_F;\
+    beI->z += (beB->z * ratio) / S3L_F; }
   
   if (infront == 2)
   {
@@ -2772,12 +2780,12 @@ void _S3L_projectTriangle(
     transformed[5] = transformed[infrontI[0]];
 
 #if S3L_NEAR_CROSS_STRATEGY == 3
-  _S3L_triangleRemapBarycentrics[3] =
-    _S3L_triangleRemapBarycentrics[behindI[1]];
-  _S3L_triangleRemapBarycentrics[4] =
-    _S3L_triangleRemapBarycentrics[infrontI[0]];
-  _S3L_triangleRemapBarycentrics[5] =
-    _S3L_triangleRemapBarycentrics[infrontI[0]];
+    _S3L_triangleRemapBarycentrics[3] =
+      _S3L_triangleRemapBarycentrics[behindI[1]];
+    _S3L_triangleRemapBarycentrics[4] =
+      _S3L_triangleRemapBarycentrics[infrontI[0]];
+    _S3L_triangleRemapBarycentrics[5] =
+      _S3L_triangleRemapBarycentrics[infrontI[0]];
 #endif
 
     for (uint8_t i = 0; i < 2; ++i)
@@ -2982,7 +2990,6 @@ void S3L_drawScene(S3L_Scene scene)
       S3L_drawTriangle(transformed[3],transformed[4],transformed[5],
       modelIndex, triangleIndex);
     }
-
   }
 #endif
 }
